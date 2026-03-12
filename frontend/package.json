@@ -1,0 +1,38 @@
+{
+  "name": "frontend",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start -p $PORT",
+    "lint": "eslint"
+  },
+  "dependencies": {
+    "@auth/core": "^0.34.3",
+    "@walletconnect/ethereum-provider": "^2.23.4",
+    "framer-motion": "^12.34.3",
+    "lucide-react": "^0.563.0",
+    "next": "16.1.4",
+    "next-auth": "^4.24.13",
+    "next-themes": "^0.4.6",
+    "qrcode.react": "^4.2.0",
+    "react": "19.2.3",
+    "react-dom": "19.2.3",
+    "recharts": "^3.7.0",
+    "web3": "^4.16.0",
+    "zustand": "^5.0.10"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4.2.1",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "autoprefixer": "^10.4.24",
+    "eslint": "^9",
+    "eslint-config-next": "16.1.4",
+    "postcss": "^8.5.6",
+    "tailwindcss": "^4.2.1",
+    "typescript": "^5"
+  }
+}
