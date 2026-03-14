@@ -21,6 +21,7 @@ export async function proxy(request: NextRequest) {
   // Shared routes that multiple roles can access
   const isVaultsRoute = pathname === '/vaults' || pathname.startsWith('/vaults/');
   const isWalletRoute = pathname === '/wallet' || pathname.startsWith('/wallet/');
+  const isSupportRoute = pathname === '/support' || pathname.startsWith('/support/');
   const isSettingsRoute = pathname === '/settings' || pathname.startsWith('/settings/');
   
   const isAuthRoute = pathname.startsWith('/auth');
@@ -32,8 +33,7 @@ export async function proxy(request: NextRequest) {
     '/terms', 
     '/about', 
     '/pricing', 
-    '/features',
-    '/support'
+    '/features'
   ].includes(pathname);
 
   // Dashboard Mapping based on role
@@ -79,7 +79,7 @@ export async function proxy(request: NextRequest) {
   }
 
   // D. SHARED ROUTES - Accessible by multiple roles
-  if (isVaultsRoute || isWalletRoute || isSettingsRoute) {
+  if (isVaultsRoute || isWalletRoute || isSupportRoute || isSettingsRoute) {
     console.log('Proxy - Shared route, allowing access for role:', userRole);
     return NextResponse.next();
   }
