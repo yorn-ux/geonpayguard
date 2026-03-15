@@ -26,6 +26,9 @@ env/
 *.sqlite
 *.sqlite3
 
+# Uploads
+uploads/
+
 # IDE
 .vscode/
 .idea/

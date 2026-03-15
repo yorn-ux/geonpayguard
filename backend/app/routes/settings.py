@@ -203,15 +203,73 @@ async def update_setting(
         logging.error(f"Settings update failed: {str(e)}")
         raise HTTPException(status_code=500, detail="Failed to update setting")
 
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
+from fastapi.responses import JSONResponse
+from sqlalchemy.orm import Session
+import os
+import uuid
+from pathlib import Path
+
+# ... existing imports ...
+
+ALLOWED_IMAGE_TYPES = {"image/jpeg", "image/png", "image/gif", "image/webp"}
+MAX_FILE_SIZE = 5 * 1024 * 1024  # 5MB
+
 @router.post("/upload-avatar")
 async def upload_avatar(
+    file: UploadFile = File(...),
     current_user: dict = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Upload profile avatar (handles file upload)"""
-    # This would handle file upload - implement with your file storage solution
-    # For now, return a placeholder
-    return {"url": "https://example.com/avatar.jpg"}
+    """Upload profile avatar image"""
+    # Validate file type
+    if file.content_type not in ALLOWED_IMAGE_TYPES:
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid file type. Only JPEG, PNG, GIF, and WebP are allowed."
+        )
+    
+    # Validate file size
+    contents = await file.read()
+    if len(contents) > MAX_FILE_SIZE:
+        raise HTTPException(
+            status_code=400,
+            detail="File too large. Maximum size is 5MB."
+        )
+    
+    # Reset file cursor
+    await file.seek(0)
+    
+    # Generate unique filename
+    ext = os.path.splitext(file.filename)[1].lower()
+    unique_filename = f"{current_user['operator_id']}_{uuid.uuid4().hex[:8]}{ext}"
+    
+    # Create upload directory
+    upload_dir = Path("uploads/avatars")
+    upload_dir.mkdir(parents=True, exist_ok=True)
+    
+    file_path = upload_dir / unique_filename
+    
+    # Save file
+    contents = await file.read()
+    with open(file_path, "wb") as f:
+        f.write(contents)
+    
+    # Build URL - in production, use cloud storage URL
+    # For now, use a relative path that can be served statically
+    avatar_url = f"/uploads/avatars/{unique_filename}"
+    
+    # Update user's avatar in database
+    from app.models.user import User
+    user = db.query(User).filter(User.operator_id == current_user["operator_id"]).first()
+    if user:
+        user.avatar_url = avatar_url
+        db.commit()
+    
+    return {
+        "url": avatar_url,
+        "message": "Avatar uploaded successfully"
+    }
 
 @router.get("/audit-logs")
 async def get_audit_logs(

@@ -6,6 +6,7 @@ from typing import List
 from fastapi import FastAPI, File, Request, Depends, Form, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from fastapi.staticfiles import StaticFiles
 from sqlalchemy import inspect, text, create_engine
 from sqlalchemy.orm import Session, sessionmaker
 
@@ -180,6 +181,12 @@ app.include_router(dispute.router, prefix="/api/v1/dispute", tags=["Dispute"])
 app.include_router(webhooks.router, prefix="/api/v1/webhooks", tags=["Webhooks"])
 app.include_router(notifications.router, prefix="/api/v1", tags=["Notifications"])
 app.include_router(admin.router, prefix="/api/v1/admin", tags=["Admin"])
+
+# --- 5. STATIC FILES ---
+# Serve uploaded files
+import os
+if os.path.exists("uploads"):
+    app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
 
 # --- 5. ROOT ENDPOINTS ---
 @app.get("/", tags=["Root"])
