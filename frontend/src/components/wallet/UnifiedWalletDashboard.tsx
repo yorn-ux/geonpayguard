@@ -442,7 +442,7 @@ function BusinessBillingTab() {
       const [balRes, histRes, statsRes] = await Promise.all([
         authenticatedFetch('/api/v1/wallet/balance'),
         authenticatedFetch('/api/v1/wallet/history?limit=50'),
-        authenticatedFetch('/api/v1/wallet/gateway/stats')
+        authenticatedFetch('/api/v1/wallet/pesapal/stats')
       ]);
       
       if (balRes.ok && histRes.ok) {

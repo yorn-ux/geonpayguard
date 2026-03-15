@@ -143,8 +143,8 @@ export default function UnifiedVaultPage() {
       });
 
       const [statsRes, vaultsRes] = await Promise.all([
-        fetch(`${API_BASE}/api/vaults/stats?operator_id=${operatorId}&role=${role}`, { headers }),
-        fetch(`${API_BASE}/api/vaults?${queryParams.toString()}`, { headers })
+        fetch(`${API_BASE}/api/v1/vaults/stats?operator_id=${operatorId}&role=${role}`, { headers }),
+        fetch(`${API_BASE}/api/v1/vaults?${queryParams.toString()}`, { headers })
       ]);
 
       if (statsRes.ok) {

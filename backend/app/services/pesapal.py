@@ -11,8 +11,8 @@ from fastapi import HTTPException
 logger = logging.getLogger(__name__)
 
 # PesaPal API Configuration
-PESAPAL_BASE_URL = os.getenv("PESAPAL_BASE_URL", "https://cybqa.pesapal.com")  # Sandbox
-# PESAPAL_BASE_URL = "https://pay.pesapal.com"  # Production
+PESAPAL_BASE_URL = os.getenv("PESAPAL_BASE_URL", "https://cybqa.pesapal.com/v3")  # Sandbox v3
+# PESAPAL_BASE_URL = "https://pay.pesapal.com/v3"  # Production v3
 
 PESAPAL_CONSUMER_KEY = os.getenv("PESAPAL_CONSUMER_KEY", "")
 PESAPAL_CONSUMER_SECRET = os.getenv("PESAPAL_CONSUMER_SECRET", "")
