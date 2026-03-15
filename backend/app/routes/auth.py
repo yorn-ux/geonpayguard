@@ -589,6 +589,52 @@ async def lock_account_get(
         "message": "Account is already locked or not found."
     }
 
+# --- 7. SELF-LOCK ENDPOINT ---
+
+@router.post("/security-lock/self")
+async def self_lock_account(
+    background_tasks: BackgroundTasks,
+    current_user: dict = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Allow users to lock their own account"""
+    user = db.query(User).filter(User.email == current_user["sub"]).first()
+    
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    if not user.is_active:
+        raise HTTPException(status_code=400, detail="Account is already locked")
+    
+    # Generate a lock token for the user
+    lock_token = create_access_token(
+        subject=user.email,
+        additional_claims={"type": "security_lock"}
+    )
+    
+    # Lock the account immediately
+    user.is_active = False
+    db.commit()
+    
+    # Create notification
+    create_notification(
+        db=db,
+        operator_id=user.operator_id,
+        title="Account Self-Locked",
+        message="You have locked your own account for security reasons.",
+        priority="HIGH",
+        category="security"
+    )
+    
+    # Send confirmation email
+    background_tasks.add_task(send_locked_email, to_email=user.email)
+    
+    return {
+        "status": "success",
+        "message": "Account has been locked",
+        "lock_token": lock_token
+    }
+
 
 # Export everything needed by other modules
 __all__ = ["router", "get_current_user", "create_notification"]
