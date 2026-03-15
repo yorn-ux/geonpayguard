@@ -5,7 +5,7 @@ import {
    ArrowRight, Loader2, Mail, Lock, 
   Eye, EyeOff, AlertCircle, Home, Check, Sparkles,
   Fingerprint, Key, Globe, 
-  Copy, Shield
+  Shield
 } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -17,7 +17,7 @@ export default function RecoveryPage() {
   
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
-  const [showPhrase, setShowPhrase] = useState(false);
+  const [showPhrase] = useState(false);
   const [error, setError] = useState('');
   const [touchedFields, setTouchedFields] = useState<Record<string, boolean>>({});
   const [step, setStep] = useState<'form' | 'processing' | 'success'>('form');
@@ -29,14 +29,42 @@ export default function RecoveryPage() {
     confirm_password: ''
   });
 
-  const wordCount = formData.recovery_phrase.trim() 
-    ? formData.recovery_phrase.trim().split(/\s+/).length 
-    : 0;
+  // State for 12-word recovery phrase as separate inputs
+  const [recoveryWords, setRecoveryWords] = useState<string[]>(Array(12).fill(''));
+
+  const wordCount = recoveryWords.filter(w => w.trim() !== '').length;
+
+  const handleWordChange = (index: number, value: string) => {
+    const newWords = [...recoveryWords];
+    newWords[index] = value.trim();
+    setRecoveryWords(newWords);
+    setFormData({...formData, recovery_phrase: newWords.join(' ')});
+    
+    // Auto-focus next input
+    if (value.trim() && index < 11) {
+      const nextInput = document.getElementById('word-' + (index + 1));
+      if (nextInput) nextInput.focus();
+    }
+  };
+
+  const handleWordKeyDown = (index: number, e: React.KeyboardEvent) => {
+    if (e.key === 'Backspace' && !recoveryWords[index] && index > 0) {
+      const prevInput = document.getElementById('word-' + (index - 1));
+      if (prevInput) prevInput.focus();
+    }
+  };
 
   const handlePastePhrase = async () => {
     try {
       const text = await navigator.clipboard.readText();
-      setFormData({...formData, recovery_phrase: text});
+      const words = text.trim().split(/\s+/);
+      if (words.length === 12) {
+        setRecoveryWords(words);
+        setFormData({...formData, recovery_phrase: text});
+        showToast("Recovery phrase pasted successfully!", "success");
+      } else {
+        showToast("Expected 12 words, got " + words.length + ". Please check and try again.", "error");
+      }
     } catch (err) {
       showToast("Unable to paste. Please type manually.", "error");
     }
@@ -103,7 +131,6 @@ export default function RecoveryPage() {
   };
 
   const inputClasses = "w-full pl-12 pr-4 py-4 bg-white border-2 border-slate-100 rounded-2xl focus:ring-4 focus:ring-rose-500/10 focus:border-rose-500 transition-all duration-200 outline-none text-sm font-medium text-[#1A1C21] placeholder:text-slate-300 hover:border-slate-200";
-  const textareaClasses = "w-full pl-12 pr-12 py-4 bg-white border-2 border-slate-100 rounded-2xl focus:ring-4 focus:ring-rose-500/10 focus:border-rose-500 transition-all duration-200 outline-none text-sm font-mono font-medium text-[#1A1C21] placeholder:text-slate-300 hover:border-slate-200 resize-none";
 
   const isFieldInvalid = (fieldName: string) => {
     return touchedFields[fieldName] && !formData[fieldName as keyof typeof formData];
@@ -203,59 +230,58 @@ export default function RecoveryPage() {
                     </div>
                   </div>
 
-                  {/* Recovery Phrase field */}
-                  <div className="space-y-2">
+                  {/* Recovery Phrase field - 12 separate input boxes */}
+                  <div className="space-y-3">
                     <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1 flex items-center gap-2">
                       <Key size={12} />
                       12-Word Recovery Phrase
                     </label>
-                    <div className="relative">
-                      <Key className="absolute left-4 top-4 text-slate-300" size={18} />
-                      <textarea 
-                        required
-                        rows={4}
-                        placeholder="word1 word2 word3 ..."
-                        className={`${textareaClasses} ${isFieldInvalid('recovery_phrase') ? 'border-red-300 bg-red-50/50' : ''}`}
-                        value={formData.recovery_phrase}
-                        onChange={e => setFormData({...formData, recovery_phrase: e.target.value})}
-                        onBlur={() => setTouchedFields({...touchedFields, recovery_phrase: true})}
-                      />
-                      <div className="absolute right-3 top-3 flex gap-1">
-                        <button
-                          type="button"
-                          onClick={() => setShowPhrase(!showPhrase)}
-                          className="p-2 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 transition-colors"
-                        >
-                          {showPhrase ? <EyeOff size={14} className="text-slate-400" /> : <Eye size={14} className="text-slate-400" />}
-                        </button>
-                        <button
-                          type="button"
-                          onClick={handlePastePhrase}
-                          className="p-2 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 transition-colors"
-                        >
-                          <Copy size={14} className="text-slate-400" />
-                        </button>
-                      </div>
+                    
+                    {/* Paste button */}
+                    <div className="flex justify-end">
+                      <button
+                        type="button"
+                        onClick={handlePastePhrase}
+                        className="text-[10px] font-bold text-rose-600 hover:text-rose-700 uppercase tracking-widest"
+                      >
+                        Paste Phrase
+                      </button>
+                    </div>
+                    
+                    {/* 12 Input boxes in a grid */}
+                    <div className="grid grid-cols-3 gap-2">
+                      {recoveryWords.map((word, index) => (
+                        <div key={index} className="relative">
+                          <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[10px] font-bold text-slate-300">
+                            {index + 1}
+                          </span>
+                          <input
+                            id={'word-' + index}
+                            type={showPhrase ? "text" : "password"}
+                            autoComplete="off"
+                            maxLength={20}
+                            className="w-full pl-6 pr-2 py-2.5 bg-white border-2 border-slate-100 rounded-xl text-center text-sm font-mono text-[#1A1C21] placeholder:text-slate-200 focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 transition-all outline-none"
+                            value={word}
+                            onChange={e => handleWordChange(index, e.target.value)}
+                            onKeyDown={e => handleWordKeyDown(index, e)}
+                            placeholder="..."
+                          />
+                        </div>
+                      ))}
                     </div>
                     
                     {/* Word counter */}
-                    {formData.recovery_phrase && (
-                      <div className="flex items-center gap-2 mt-2">
-                        <div className="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                          <div 
-                            className={`h-full transition-all duration-300 ${
-                              wordCount === 12 ? 'bg-emerald-500' : 'bg-amber-500'
-                            }`}
-                            style={{ width: `${(wordCount / 12) * 100}%` }}
-                          />
-                        </div>
-                        <span className={`text-[9px] font-bold ${
-                          wordCount === 12 ? 'text-emerald-600' : 'text-amber-600'
-                        }`}>
-                          {wordCount}/12 words
-                        </span>
+                    <div className="flex items-center gap-2 mt-2">
+                      <div className="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                        <div 
+                          className={'h-full transition-all duration-300 ' + (wordCount === 12 ? 'bg-emerald-500' : 'bg-amber-500')}
+                          style={{ width: (wordCount / 12) * 100 + '%' }}
+                        />
                       </div>
-                    )}
+                      <span className={'text-[9px] font-bold ' + (wordCount === 12 ? 'text-emerald-600' : 'text-amber-600')}>
+                        {wordCount}/12 words
+                      </span>
+                    </div>
                   </div>
 
                   {/* New Password field */}
