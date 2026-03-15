@@ -369,9 +369,10 @@ async def login(
         db=db,
         operator_id=user.operator_id,
         title="New Login Detected",
-        message=f"New login from {request.client.host}",
+        message=f"New login from {request.client.host}. If this wasn't you, click to freeze your account and our support team will contact you.",
         priority="LOW",
-        category="security"
+        category="security",
+        action_url="/settings"
     )
 
     # Send security alert for non-admin users
