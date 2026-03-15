@@ -703,9 +703,10 @@ export default function InfluencerSettings({ data: initialData }: { data: any })
                               freezeAccount();
                             }
                           }}
-                          className="mt-3 px-4 py-2 bg-red-600 text-white rounded-lg text-sm font-medium hover:bg-red-700 transition-colors"
+                          disabled={isFreezing}
+                          className="mt-3 px-4 py-2 bg-red-600 text-white rounded-lg text-sm font-medium hover:bg-red-700 transition-colors disabled:opacity-50"
                         >
-                          Freeze My Account
+                          {isFreezing ? 'Freezing...' : 'Freeze My Account'}
                         </button>
                       </div>
                     </div>
