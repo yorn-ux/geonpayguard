@@ -224,7 +224,7 @@ class GeonEmailService:
         subject = "🔐 Security Alert: New Login Detected"
         
         token = create_access_token(subject=to_email) 
-        lock_link = f"{self.backend_url}/api/v1/auth/lock-account/{token}"
+        lock_link = f"{self.frontend_url}/auth/locked?token={token}"
 
         content = f"""
             <div style="border: 1px solid #fecaca; border-radius: 16px; padding: 30px; background: #fff5f5;">
