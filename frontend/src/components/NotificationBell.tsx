@@ -3,8 +3,8 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { 
   Bell, Check, Clock, AlertCircle, AlertTriangle, 
-  Info, X, Loader2, ChevronRight, Trash2, Filter
-} from 'lucide-react';
+  Info, X, Loader2, ChevronRight, Trash2, Filter, 
+ } from 'lucide-react';
 import { useNotificationStore } from '@/store/useNotificationStore';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -151,7 +151,6 @@ export default function NotificationBell({
     const currentTouch = e.touches[0].clientY;
     const diff = currentTouch - touchStart;
     
-    // Only allow pull-to-close when pulling down from top
     if (diff > 0 && dropdownRef.current.scrollTop === 0) {
       e.preventDefault();
     }
@@ -163,7 +162,6 @@ export default function NotificationBell({
     const endTouch = e.changedTouches[0].clientY;
     const diff = endTouch - touchStart;
     
-    // Close if pulled down more than 100px
     if (diff > 100 && dropdownRef.current.scrollTop === 0) {
       setIsOpen(false);
       setShowClearConfirm(false);
@@ -247,16 +245,16 @@ export default function NotificationBell({
 
     const { icon: Icon, class: colorClass } = config[priority as PriorityType] || config.LOW;
     
-    return <Icon className={`${baseClass} ${!isRead ? colorClass : ''}`} size={size} />;
+    return <Icon className={`${baseClass} ${!isRead ? colorClass : ''}`} size={size} strokeWidth={1.5} />;
   }, []);
 
   // Get priority badge color
   const getPriorityBadgeColor = useCallback((priority: string) => {
     const colors = {
-      CRITICAL: 'bg-rose-100 text-rose-700',
-      HIGH: 'bg-amber-100 text-amber-700',
-      MEDIUM: 'bg-blue-100 text-blue-700',
-      LOW: 'bg-slate-100 text-slate-700'
+      CRITICAL: 'bg-rose-100 text-rose-700 border-rose-200',
+      HIGH: 'bg-amber-100 text-amber-700 border-amber-200',
+      MEDIUM: 'bg-blue-100 text-blue-700 border-blue-200',
+      LOW: 'bg-slate-100 text-slate-700 border-slate-200'
     };
     return colors[priority as PriorityType] || colors.LOW;
   }, []);
@@ -295,19 +293,19 @@ export default function NotificationBell({
         onClick={() => setIsOpen(!isOpen)}
         className={`relative p-2 sm:p-2.5 rounded-xl border-2 transition-all group touch-manipulation ${
           isOpen 
-            ? 'bg-indigo-50 border-indigo-200 text-indigo-600' 
-            : 'bg-white border-slate-100 text-slate-600 hover:border-indigo-200 hover:bg-indigo-50 hover:text-indigo-600 active:bg-indigo-100'
+            ? 'bg-amber-50 border-amber-200 text-amber-600 shadow-lg shadow-amber-100' 
+            : 'bg-white border-slate-200 text-slate-500 hover:border-amber-200 hover:bg-amber-50 hover:text-amber-600 active:bg-amber-100'
         }`}
         aria-label="Notifications"
         aria-expanded={isOpen}
         aria-haspopup="true"
       >
-        <Bell size={typeof window !== 'undefined' && window.innerWidth < 640 ? 22 : 20} />
+        <Bell size={typeof window !== 'undefined' && window.innerWidth < 640 ? 22 : 20} strokeWidth={1.5} />
         {unreadCount > 0 && (
           <motion.span
             initial={{ scale: 0.5, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
-            className="absolute -top-1 -right-1 min-w-5 h-5 bg-rose-500 text-white text-[10px] sm:text-[10px] font-black rounded-full flex items-center justify-center px-1 border-2 border-white shadow-sm"
+            className="absolute -top-1 -right-1 min-w-5 h-5 bg-rose-500 text-white text-[10px] sm:text-[10px] font-black rounded-full flex items-center justify-center px-1 border-2 border-white shadow-lg shadow-rose-200"
           >
             {unreadCount > 99 ? '99+' : unreadCount > 9 ? '9+' : unreadCount}
           </motion.span>
@@ -339,20 +337,29 @@ export default function NotificationBell({
               onTouchEnd={handleTouchEnd}
               className={`
                 fixed sm:absolute z-50 overflow-hidden bg-white shadow-2xl
-                sm:right-0 sm:mt-2 sm:w-96 sm:rounded-2xl sm:border-2 sm:border-slate-100
+                sm:right-0 sm:mt-2 sm:w-96 sm:rounded-2xl sm:border-2 sm:border-slate-200
                 inset-x-4 top-20 bottom-4 rounded-2xl border border-slate-200
                 sm:inset-auto
               `}
             >
+              {/* Top Gradient Bar */}
+              <div className="h-1.5 w-full bg-gradient-to-r from-amber-500 to-amber-400" />
+
               {/* Pull indicator for mobile */}
               <div className="sm:hidden w-full flex justify-center pt-2 pb-1">
                 <div className="w-12 h-1 bg-slate-300 rounded-full" />
               </div>
 
               {/* Header */}
-              <div className="p-3 sm:p-4 border-b border-slate-100 bg-gradient-to-r from-indigo-50/50 to-slate-50/30">
+              <div className="p-3 sm:p-4 border-b border-slate-200 bg-gradient-to-r from-amber-50/50 to-slate-50/30">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2 sm:gap-3">
+                    <div className="relative">
+                      <Bell className="text-amber-500" size={20} strokeWidth={1.5} />
+                      {unreadCount > 0 && (
+                        <span className="absolute -top-1 -right-1 w-2 h-2 bg-rose-500 rounded-full ring-2 ring-white" />
+                      )}
+                    </div>
                     <h3 className="text-sm sm:text-base font-black text-slate-900">
                       Notifications
                     </h3>
@@ -360,7 +367,7 @@ export default function NotificationBell({
                       <motion.span 
                         initial={{ scale: 0 }}
                         animate={{ scale: 1 }}
-                        className="px-2 py-0.5 bg-rose-100 text-rose-700 text-[10px] font-bold rounded-full"
+                        className="px-2 py-0.5 bg-amber-100 text-amber-700 text-[10px] font-bold rounded-full border border-amber-200"
                       >
                         {unreadCount} new
                       </motion.span>
@@ -374,7 +381,7 @@ export default function NotificationBell({
                         onClick={() => setActiveTab('all')}
                         className={`px-3 py-1 text-[10px] font-bold rounded-md transition ${
                           activeTab === 'all' 
-                            ? 'bg-white text-slate-900 shadow-sm' 
+                            ? 'bg-white text-slate-900 shadow-sm border border-slate-200' 
                             : 'text-slate-600 hover:text-slate-900'
                         }`}
                       >
@@ -384,7 +391,7 @@ export default function NotificationBell({
                         onClick={() => setActiveTab('unread')}
                         className={`px-3 py-1 text-[10px] font-bold rounded-md transition ${
                           activeTab === 'unread' 
-                            ? 'bg-white text-slate-900 shadow-sm' 
+                            ? 'bg-white text-slate-900 shadow-sm border border-slate-200' 
                             : 'text-slate-600 hover:text-slate-900'
                         }`}
                       >
@@ -399,22 +406,22 @@ export default function NotificationBell({
                           onClick={() => setShowFilters(!showFilters)}
                           className={`p-2 sm:p-1.5 rounded-lg transition touch-manipulation ${
                             showFilters || priorityFilter !== 'ALL'
-                              ? 'bg-indigo-100 text-indigo-600'
-                              : 'text-slate-600 hover:bg-slate-100 active:bg-slate-200'
+                              ? 'bg-amber-100 text-amber-600 border border-amber-200'
+                              : 'text-slate-500 hover:bg-slate-100 active:bg-slate-200 border border-transparent'
                           }`}
                           aria-label="Filter notifications"
                         >
-                          <Filter size={typeof window !== 'undefined' && window.innerWidth < 640 ? 18 : 16} />
+                          <Filter size={typeof window !== 'undefined' && window.innerWidth < 640 ? 18 : 16} strokeWidth={1.5} />
                         </button>
                       )}
 
                       {userNotifications.length > 0 && !showClearConfirm && !showFilters && (
                         <button
                           onClick={() => setShowClearConfirm(true)}
-                          className="p-2 sm:p-1.5 text-rose-600 hover:bg-rose-50 active:bg-rose-100 rounded-lg transition touch-manipulation"
+                          className="p-2 sm:p-1.5 text-rose-500 hover:bg-rose-50 active:bg-rose-100 rounded-lg transition touch-manipulation border border-transparent hover:border-rose-200"
                           aria-label="Clear all notifications"
                         >
-                          <Trash2 size={typeof window !== 'undefined' && window.innerWidth < 640 ? 18 : 16} />
+                          <Trash2 size={typeof window !== 'undefined' && window.innerWidth < 640 ? 18 : 16} strokeWidth={1.5} />
                         </button>
                       )}
 
@@ -422,13 +429,13 @@ export default function NotificationBell({
                         <button
                           onClick={handleMarkAllAsRead}
                           disabled={isMarkingAll}
-                          className="p-2 sm:p-1.5 text-indigo-600 hover:bg-indigo-50 active:bg-indigo-100 rounded-lg transition disabled:opacity-50 touch-manipulation"
+                          className="p-2 sm:p-1.5 text-emerald-600 hover:bg-emerald-50 active:bg-emerald-100 rounded-lg transition disabled:opacity-50 touch-manipulation border border-transparent hover:border-emerald-200"
                           aria-label="Mark all as read"
                         >
                           {isMarkingAll ? (
-                            <Loader2 size={typeof window !== 'undefined' && window.innerWidth < 640 ? 18 : 16} className="animate-spin" />
+                            <Loader2 size={typeof window !== 'undefined' && window.innerWidth < 640 ? 18 : 16} className="animate-spin" strokeWidth={1.5} />
                           ) : (
-                            <Check size={typeof window !== 'undefined' && window.innerWidth < 640 ? 18 : 16} />
+                            <Check size={typeof window !== 'undefined' && window.innerWidth < 640 ? 18 : 16} strokeWidth={1.5} />
                           )}
                         </button>
                       )}
@@ -439,10 +446,10 @@ export default function NotificationBell({
                           setShowClearConfirm(false);
                           setShowFilters(false);
                         }}
-                        className="p-2 sm:p-1.5 hover:bg-slate-100 active:bg-slate-200 rounded-lg transition touch-manipulation"
+                        className="p-2 sm:p-1.5 hover:bg-slate-100 active:bg-slate-200 rounded-lg transition touch-manipulation border border-transparent hover:border-slate-200"
                         aria-label="Close"
                       >
-                        <X size={typeof window !== 'undefined' && window.innerWidth < 640 ? 18 : 16} />
+                        <X size={typeof window !== 'undefined' && window.innerWidth < 640 ? 18 : 16} strokeWidth={1.5} />
                       </button>
                     </div>
                   </div>
@@ -454,7 +461,7 @@ export default function NotificationBell({
                     onClick={() => setActiveTab('all')}
                     className={`flex-1 py-2 text-xs font-bold rounded-md transition ${
                       activeTab === 'all' 
-                        ? 'bg-white text-slate-900 shadow-sm' 
+                        ? 'bg-white text-slate-900 shadow-sm border border-slate-200' 
                         : 'text-slate-600'
                     }`}
                   >
@@ -464,7 +471,7 @@ export default function NotificationBell({
                     onClick={() => setActiveTab('unread')}
                     className={`flex-1 py-2 text-xs font-bold rounded-md transition ${
                       activeTab === 'unread' 
-                        ? 'bg-white text-slate-900 shadow-sm' 
+                        ? 'bg-white text-slate-900 shadow-sm border border-slate-200' 
                         : 'text-slate-600'
                     }`}
                   >
@@ -479,26 +486,27 @@ export default function NotificationBell({
                       initial={{ opacity: 0, y: -10 }}
                       animate={{ opacity: 1, y: 0 }}
                       exit={{ opacity: 0, y: -10 }}
-                      className="mt-3 flex items-center justify-between bg-rose-50 rounded-lg p-2"
+                      className="mt-3 flex items-center justify-between bg-rose-50 rounded-lg p-2 border border-rose-200"
                     >
-                      <span className="text-xs font-bold text-rose-700">
+                      <span className="text-xs font-bold text-rose-700 flex items-center gap-1.5">
+                        <AlertTriangle size={14} className="text-rose-500" />
                         Clear all notifications?
                       </span>
                       <div className="flex items-center gap-2">
                         <button
                           onClick={handleClearAll}
                           disabled={isClearingAll}
-                          className="px-3 py-1.5 bg-rose-500 text-white text-xs font-bold rounded-lg hover:bg-rose-600 active:bg-rose-700 transition disabled:opacity-50 touch-manipulation min-w-[60px]"
+                          className="px-3 py-1.5 bg-rose-500 text-white text-xs font-bold rounded-lg hover:bg-rose-600 active:bg-rose-700 transition disabled:opacity-50 touch-manipulation min-w-[60px] shadow-sm"
                         >
                           {isClearingAll ? (
-                            <Loader2 size={14} className="animate-spin mx-auto" />
+                            <Loader2 size={14} className="animate-spin mx-auto" strokeWidth={2} />
                           ) : (
                             'Yes'
                           )}
                         </button>
                         <button
                           onClick={() => setShowClearConfirm(false)}
-                          className="px-3 py-1.5 bg-white text-slate-600 text-xs font-bold rounded-lg hover:bg-slate-100 active:bg-slate-200 transition touch-manipulation"
+                          className="px-3 py-1.5 bg-white text-slate-600 text-xs font-bold rounded-lg hover:bg-slate-100 active:bg-slate-200 transition touch-manipulation border border-slate-200"
                         >
                           No
                         </button>
@@ -517,16 +525,17 @@ export default function NotificationBell({
                       className="mt-3 overflow-hidden"
                     >
                       <div className="pt-3 border-t border-slate-200">
-                        <p className="text-xs font-bold text-slate-500 mb-2">
+                        <p className="text-xs font-bold text-slate-500 mb-2 flex items-center gap-1.5">
+                          <Filter size={12} className="text-amber-500" />
                           Filter by priority:
                         </p>
                         <div className="flex flex-wrap gap-1.5">
                           <button
                             onClick={() => setPriorityFilter('ALL')}
-                            className={`px-3 py-1.5 text-xs font-bold rounded-lg transition touch-manipulation ${
+                            className={`px-3 py-1.5 text-xs font-bold rounded-lg transition touch-manipulation border ${
                               priorityFilter === 'ALL'
-                                ? 'bg-slate-800 text-white'
-                                : 'bg-slate-100 text-slate-600 hover:bg-slate-200 active:bg-slate-300'
+                                ? 'bg-slate-800 text-white border-slate-800 shadow-sm'
+                                : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50 active:bg-slate-100'
                             }`}
                           >
                             All
@@ -535,15 +544,15 @@ export default function NotificationBell({
                             <button
                               key={priority}
                               onClick={() => setPriorityFilter(priority)}
-                              className={`px-3 py-1.5 text-xs font-bold rounded-lg transition touch-manipulation flex items-center gap-1 ${
+                              className={`px-3 py-1.5 text-xs font-bold rounded-lg transition touch-manipulation flex items-center gap-1 border ${
                                 priorityFilter === priority
-                                  ? getPriorityBadgeColor(priority)
-                                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200 active:bg-slate-300'
+                                  ? `${getPriorityBadgeColor(priority)} border-current`
+                                  : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50 active:bg-slate-100'
                               }`}
                             >
                               {priority}
                               {priorityCounts[priority] > 0 && (
-                                <span className="ml-1 px-1.5 py-0.5 bg-white/30 rounded-full text-[10px]">
+                                <span className="ml-1 px-1.5 py-0.5 bg-white/50 rounded-full text-[10px] font-bold">
                                   {priorityCounts[priority]}
                                 </span>
                               )}
@@ -560,24 +569,33 @@ export default function NotificationBell({
               <div className="h-[calc(100%-140px)] sm:max-h-[400px] overflow-y-auto overscroll-contain">
                 {isLoading && !filteredNotifications.length ? (
                   <div className="p-8 sm:p-12 text-center">
-                    <Loader2 className="mx-auto text-indigo-600 animate-spin mb-3 sm:mb-4" size={typeof window !== 'undefined' && window.innerWidth < 640 ? 36 : 32} />
-                    <p className="text-sm sm:text-base text-slate-500">Loading notifications...</p>
+                    <div className="relative w-16 h-16 mx-auto mb-4">
+                      <div className="absolute inset-0 bg-amber-100 rounded-full animate-ping" />
+                      <div className="relative w-16 h-16 bg-amber-50 rounded-full border-2 border-amber-200 flex items-center justify-center">
+                        <Loader2 className="text-amber-500 animate-spin" size={32} strokeWidth={1.5} />
+                      </div>
+                    </div>
+                    <p className="text-sm sm:text-base text-slate-500 font-medium">Loading notifications...</p>
                   </div>
                 ) : error ? (
                   <div className="p-6 sm:p-8 text-center">
-                    <AlertCircle className="mx-auto text-rose-400 mb-3" size={typeof window !== 'undefined' && window.innerWidth < 640 ? 36 : 32} />
-                    <p className="text-sm sm:text-base text-slate-600 mb-2">Failed to load</p>
+                    <div className="w-16 h-16 bg-rose-50 rounded-full border-2 border-rose-200 flex items-center justify-center mx-auto mb-4">
+                      <AlertCircle className="text-rose-500" size={32} strokeWidth={1.5} />
+                    </div>
+                    <p className="text-sm sm:text-base font-bold text-slate-900 mb-1">Failed to load</p>
                     <p className="text-xs text-slate-500 mb-4">{error}</p>
                     <button
                       onClick={() => fetchUserNotifications(userId, maxDisplay)}
-                      className="px-4 py-2 text-xs sm:text-sm font-bold text-indigo-600 bg-indigo-50 rounded-lg hover:bg-indigo-100 active:bg-indigo-200 transition touch-manipulation"
+                      className="px-4 py-2 text-xs sm:text-sm font-bold text-amber-600 bg-amber-50 rounded-lg hover:bg-amber-100 active:bg-amber-200 transition touch-manipulation border border-amber-200"
                     >
                       Try again
                     </button>
                   </div>
                 ) : filteredNotifications.length === 0 ? (
                   <div className="p-8 sm:p-12 text-center">
-                    <Bell className="mx-auto text-slate-200 mb-3 sm:mb-4" size={typeof window !== 'undefined' && window.innerWidth < 640 ? 40 : 32} />
+                    <div className="w-20 h-20 bg-slate-50 rounded-full border-2 border-slate-200 flex items-center justify-center mx-auto mb-4">
+                      <Bell className="text-slate-300" size={40} strokeWidth={1.5} />
+                    </div>
                     <p className="text-sm sm:text-base font-bold text-slate-700">All caught up!</p>
                     <p className="text-xs sm:text-sm text-slate-500 mt-1">
                       {activeTab === 'unread' 
@@ -589,7 +607,7 @@ export default function NotificationBell({
                     {priorityFilter !== 'ALL' && (
                       <button
                         onClick={() => setPriorityFilter('ALL')}
-                        className="mt-4 text-xs sm:text-sm font-bold text-indigo-600 hover:text-indigo-700 active:text-indigo-800 transition touch-manipulation"
+                        className="mt-4 text-xs sm:text-sm font-bold text-amber-600 hover:text-amber-700 active:text-amber-800 transition touch-manipulation underline underline-offset-2"
                       >
                         Clear filter
                       </button>
@@ -608,13 +626,21 @@ export default function NotificationBell({
                         transition={{ delay: index * 0.03 }}
                         onClick={() => handleNotificationClick(notification)}
                         onTouchEnd={() => handleNotificationClick(notification)}
-                        className={`p-3 sm:p-4 cursor-pointer hover:bg-slate-50 active:bg-slate-100 transition group relative touch-manipulation ${
-                          !notification.is_read ? 'bg-indigo-50/30' : ''
+                        className={`p-3 sm:p-4 cursor-pointer hover:bg-slate-50 active:bg-slate-100 transition group relative touch-manipulation border-l-2 ${
+                          !notification.is_read 
+                            ? 'border-l-amber-500 bg-amber-50/20' 
+                            : 'border-l-transparent'
                         }`}
                       >
                         <div className="flex gap-2 sm:gap-3">
                           <div className="flex-shrink-0 mt-1">
-                            {getPriorityIcon(notification.priority, notification.is_read)}
+                            <div className={`w-8 h-8 rounded-full bg-white border-2 flex items-center justify-center ${
+                              !notification.is_read 
+                                ? getPriorityBadgeColor(notification.priority).split(' ')[0] + ' border-current' 
+                                : 'border-slate-200'
+                            }`}>
+                              {getPriorityIcon(notification.priority, notification.is_read)}
+                            </div>
                           </div>
                           
                           <div className="flex-1 min-w-0">
@@ -624,12 +650,12 @@ export default function NotificationBell({
                                   {notification.title}
                                 </span>
                                 {!notification.is_read && (
-                                  <span className={`inline-block mt-1 px-1.5 py-0.5 text-[8px] sm:text-[10px] font-bold rounded-full ${getPriorityBadgeColor(notification.priority)}`}>
+                                  <span className={`inline-block mt-1 px-2 py-0.5 text-[8px] sm:text-[10px] font-bold rounded-full border ${getPriorityBadgeColor(notification.priority)}`}>
                                     {notification.priority}
                                   </span>
                                 )}
                               </div>
-                              <span className="text-[10px] sm:text-xs text-slate-500 whitespace-nowrap">
+                              <span className="text-[10px] sm:text-xs text-slate-500 whitespace-nowrap bg-slate-100 px-2 py-1 rounded-full">
                                 {formatTime(notification.created_at)}
                               </span>
                             </div>
@@ -639,20 +665,20 @@ export default function NotificationBell({
                             </p>
                             
                             {notification.action_url && (
-                              <div className="flex items-center gap-1 mt-2 text-xs sm:text-sm text-indigo-600 font-bold opacity-100 sm:opacity-0 group-hover:opacity-100 transition">
-                                View details <ChevronRight size={typeof window !== 'undefined' && window.innerWidth < 640 ? 14 : 12} />
+                              <div className="flex items-center gap-1 mt-2 text-xs sm:text-sm text-amber-600 font-bold opacity-100 sm:opacity-0 group-hover:opacity-100 transition">
+                                View details <ChevronRight size={typeof window !== 'undefined' && window.innerWidth < 640 ? 14 : 12} strokeWidth={2} />
                               </div>
                             )}
                           </div>
 
-                          {/* Delete button - always visible on mobile */}
+                          {/* Delete button */}
                           <button
                             onClick={(e) => handleDelete(e, notification.id)}
                             onTouchEnd={(e) => handleDelete(e, notification.id)}
-                            className="opacity-100 sm:opacity-0 group-hover:opacity-100 p-1.5 sm:p-1 hover:bg-slate-200 active:bg-slate-300 rounded transition self-start touch-manipulation"
+                            className="opacity-100 sm:opacity-0 group-hover:opacity-100 p-1.5 sm:p-1 hover:bg-slate-200 active:bg-slate-300 rounded transition self-start touch-manipulation border border-transparent hover:border-slate-300"
                             aria-label="Delete notification"
                           >
-                            <X size={typeof window !== 'undefined' && window.innerWidth < 640 ? 16 : 12} className="text-slate-400" />
+                            <X size={typeof window !== 'undefined' && window.innerWidth < 640 ? 16 : 12} className="text-slate-400" strokeWidth={2} />
                           </button>
                         </div>
                       </motion.div>
@@ -663,13 +689,14 @@ export default function NotificationBell({
 
               {/* Footer */}
               {filteredNotifications.length > 0 && (
-                <div className="p-3 sm:p-3 border-t border-slate-100 bg-slate-50/50 text-center">
+                <div className="p-3 sm:p-3 border-t border-slate-200 bg-gradient-to-r from-slate-50 to-white text-center">
                   <button
                     onClick={handleViewAll}
                     onTouchEnd={handleViewAll}
-                    className="text-xs sm:text-sm font-bold text-indigo-600 hover:text-indigo-700 active:text-indigo-800 transition touch-manipulation py-2 px-4"
+                    className="text-xs sm:text-sm font-bold text-amber-600 hover:text-amber-700 active:text-amber-800 transition touch-manipulation py-2 px-4 flex items-center justify-center gap-1 mx-auto group"
                   >
                     View all notifications
+                    <ChevronRight size={14} className="group-hover:translate-x-0.5 transition-transform" strokeWidth={2} />
                   </button>
                 </div>
               )}

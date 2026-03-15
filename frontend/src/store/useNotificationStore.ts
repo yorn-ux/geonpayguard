@@ -11,7 +11,7 @@ interface ToastNotification {
   message: string;
   type: NotificationType;
   timestamp: Date;
-  duration?: number; // Custom duration in ms
+  duration?: number;
   action?: {
     label: string;
     onClick: () => void;
@@ -29,7 +29,7 @@ interface UserNotification {
   action_url?: string;
   created_at: string;
   read_at?: string;
-  metadata?: Record<string, any>; // For additional data
+  metadata?: Record<string, any>;
 }
 
 interface NotificationState {
@@ -87,7 +87,6 @@ const getToken = (): string | null => {
   if (typeof window === 'undefined') return null;
   
   try {
-    // Read from cookie
     const cookie = document.cookie
       .split('; ')
       .find(row => row.startsWith('geon_token='));
@@ -97,7 +96,6 @@ const getToken = (): string | null => {
       if (token) return decodeURIComponent(token);
     }
     
-    // Fallback to localStorage
     return localStorage.getItem('auth_token');
   } catch (error) {
     console.error('Error reading token:', error);
@@ -136,7 +134,6 @@ const authenticatedFetch = async (url: string, options: RequestInit = {}) => {
 export const useNotificationStore = create<NotificationState>()(
   persist(
     (set, get) => {
-      // Polling interval reference
       let pollingInterval: NodeJS.Timeout | null = null;
 
       return {
@@ -150,7 +147,7 @@ export const useNotificationStore = create<NotificationState>()(
         error: null,
         lastFetched: null,
 
-        // ===== TOAST NOTIFICATIONS (POPUP MESSAGES) =====
+        // ===== TOAST NOTIFICATIONS =====
         
         showToast: (message, type = 'info', options = {}) => {
           const id = crypto.randomUUID?.() || Math.random().toString(36).substring(2);
@@ -170,7 +167,6 @@ export const useNotificationStore = create<NotificationState>()(
             activeToast: newToast,
           }));
 
-          // Auto hide after duration
           setTimeout(() => {
             const currentState = get();
             if (currentState.activeToast?.id === id) {
@@ -188,7 +184,7 @@ export const useNotificationStore = create<NotificationState>()(
           activeToast: state.activeToast?.id === id ? null : state.activeToast,
         })),
 
-        // ===== USER NOTIFICATIONS (INBOX MESSAGES) =====
+        // ===== USER NOTIFICATIONS =====
         
         fetchUserNotifications: async (userId: string, limit = 50) => {
           if (!userId) {
@@ -199,13 +195,11 @@ export const useNotificationStore = create<NotificationState>()(
           set({ isLoading: true, error: null });
           
           try {
-            // Use the with-count endpoint for better data
             const url = `${API_BASE_URL}/${API_VERSION}/notifications/${userId}/with-count?limit=${limit}`;
             const response = await authenticatedFetch(url);
             
             const data = await response.json();
             
-            // Handle the NotificationList response format
             const notifications = data.notifications || [];
             const unread = data.unread_count || 0;
             
@@ -215,6 +209,21 @@ export const useNotificationStore = create<NotificationState>()(
               lastFetched: new Date(),
               error: null
             });
+
+            // Show toast for CRITICAL notifications on fetch
+            const criticalUnread = notifications.filter(
+              (n: UserNotification) => !n.is_read && n.priority === 'CRITICAL'
+            );
+            
+            if (criticalUnread.length > 0) {
+              setTimeout(() => {
+                get().showToast(
+                  `${criticalUnread.length} critical notification${criticalUnread.length > 1 ? 's' : ''}`, 
+                  'error',
+                  { duration: 6000 }
+                );
+              }, 500);
+            }
           } catch (error) {
             const message = error instanceof Error ? error.message : 'Failed to load notifications';
             set({ error: message });
@@ -225,7 +234,6 @@ export const useNotificationStore = create<NotificationState>()(
         },
 
         markAsRead: async (notificationId: string) => {
-          // Optimistic update
           const previousNotifications = get().userNotifications;
           const previousUnreadCount = get().unreadCount;
           
@@ -245,7 +253,6 @@ export const useNotificationStore = create<NotificationState>()(
             const url = `${API_BASE_URL}/${API_VERSION}/notifications/${notificationId}/read`;
             await authenticatedFetch(url, { method: 'POST' });
           } catch (error) {
-            // Revert on error
             set({
               userNotifications: previousNotifications,
               unreadCount: previousUnreadCount
@@ -257,7 +264,6 @@ export const useNotificationStore = create<NotificationState>()(
         },
 
         markAllAsRead: async (userId: string) => {
-          // Optimistic update
           const previousNotifications = get().userNotifications;
           const previousUnreadCount = get().unreadCount;
           
@@ -276,7 +282,6 @@ export const useNotificationStore = create<NotificationState>()(
             
             get().showToast('All notifications marked as read', 'success');
           } catch (error) {
-            // Revert on error
             set({
               userNotifications: previousNotifications,
               unreadCount: previousUnreadCount
@@ -288,7 +293,6 @@ export const useNotificationStore = create<NotificationState>()(
         },
 
         deleteNotification: async (notificationId: string) => {
-          // Optimistic update
           const previousNotifications = get().userNotifications;
           const previousUnreadCount = get().unreadCount;
           
@@ -308,7 +312,6 @@ export const useNotificationStore = create<NotificationState>()(
             
             get().showToast('Notification deleted', 'success');
           } catch (error) {
-            // Revert on error
             set({
               userNotifications: previousNotifications,
               unreadCount: previousUnreadCount
@@ -321,7 +324,6 @@ export const useNotificationStore = create<NotificationState>()(
 
         addUserNotification: (notification: UserNotification) => {
           set(state => {
-            // Don't add duplicates
             if (state.userNotifications.some(n => n.id === notification.id)) {
               return state;
             }
@@ -329,23 +331,28 @@ export const useNotificationStore = create<NotificationState>()(
             const updated = [notification, ...state.userNotifications].slice(0, 100);
             const unread = updated.filter(n => !n.is_read).length;
             
-            // Show popup for important notifications
             if (!notification.is_read) {
-              if (notification.priority === 'CRITICAL') {
-                setTimeout(() => {
-                  get().showToast(`🔴 ${notification.title}`, 'error', {
-                    duration: 6000,
+              // Priority-based toast notifications
+              const toastConfig = {
+                CRITICAL: { type: 'error' as const, duration: 6000, prefix: '🔴' },
+                HIGH: { type: 'warning' as const, duration: 5000, prefix: '🟠' },
+                MEDIUM: { type: 'info' as const, duration: 4000, prefix: '🔵' },
+                LOW: { type: 'success' as const, duration: 3000, prefix: '🟢' }
+              }[notification.priority];
+
+              setTimeout(() => {
+                get().showToast(
+                  `${toastConfig.prefix} ${notification.title}`,
+                  toastConfig.type,
+                  {
+                    duration: toastConfig.duration,
                     action: notification.action_url ? {
                       label: 'View',
                       onClick: () => window.location.href = notification.action_url!
                     } : undefined
-                  });
-                }, 100);
-              } else if (notification.priority === 'HIGH') {
-                setTimeout(() => {
-                  get().showToast(`🟠 ${notification.title}`, 'warning');
-                }, 100);
-              }
+                  }
+                );
+              }, 100);
             }
             
             return {
@@ -361,11 +368,9 @@ export const useNotificationStore = create<NotificationState>()(
         }),
         
         clearAllNotifications: async (userId?: string) => {
-          // Store previous state for potential revert
           const previousNotifications = get().userNotifications;
           const previousUnreadCount = get().unreadCount;
           
-          // Clear local state immediately for better UX
           set({ 
             toastNotifications: [], 
             userNotifications: [], 
@@ -374,7 +379,6 @@ export const useNotificationStore = create<NotificationState>()(
             error: null
           });
 
-          // If userId is provided, also clear on the server
           if (userId) {
             try {
               const url = `${API_BASE_URL}/${API_VERSION}/notifications/clear-all/${userId}`;
@@ -383,7 +387,6 @@ export const useNotificationStore = create<NotificationState>()(
               
               get().showToast(data.message || 'All notifications cleared', 'success');
             } catch (error) {
-              // Revert local state if server request fails
               set({ 
                 userNotifications: previousNotifications,
                 unreadCount: previousUnreadCount,
@@ -393,21 +396,18 @@ export const useNotificationStore = create<NotificationState>()(
               const message = error instanceof Error ? error.message : 'Failed to clear notifications on server';
               get().showToast(message, 'error');
               
-              // Re-throw for component-level handling
               throw error;
             }
           }
         },
 
-        // New: Clear only read notifications
         clearReadNotifications: async (userId: string) => {
           const previousNotifications = get().userNotifications;
           const previousUnreadCount = get().unreadCount;
           
-          // Optimistic update - remove read notifications
           set(state => {
             const updated = state.userNotifications.filter(n => !n.is_read);
-            const unread = updated.length; // All remaining are unread
+            const unread = updated.length;
             return {
               userNotifications: updated,
               unreadCount: unread
@@ -421,7 +421,6 @@ export const useNotificationStore = create<NotificationState>()(
             
             get().showToast(data.message || 'Read notifications cleared', 'success');
           } catch (error) {
-            // Revert on error
             set({
               userNotifications: previousNotifications,
               unreadCount: previousUnreadCount
@@ -432,14 +431,12 @@ export const useNotificationStore = create<NotificationState>()(
           }
         },
 
-        // New: Clear old notifications
         clearOldNotifications: async (userId: string, days: number = 30) => {
           try {
             const url = `${API_BASE_URL}/${API_VERSION}/notifications/clear-old/${userId}?days=${days}`;
             const response = await authenticatedFetch(url, { method: 'DELETE' });
             const data = await response.json();
             
-            // Refresh notifications after clearing old ones
             await get().fetchUserNotifications(userId);
             
             get().showToast(data.message || `Cleared notifications older than ${days} days`, 'success');
@@ -450,20 +447,17 @@ export const useNotificationStore = create<NotificationState>()(
           }
         },
 
-        // ===== POLLING FOR REAL-TIME UPDATES =====
+        // ===== POLLING =====
         
         startPolling: (userId: string, interval = 30000) => {
-          // Clear existing polling
           if (pollingInterval) {
             clearInterval(pollingInterval);
           }
           
           set({ isPolling: true });
           
-          // Initial fetch
           get().fetchUserNotifications(userId);
           
-          // Set up polling
           pollingInterval = setInterval(() => {
             if (userId) {
               get().fetchUserNotifications(userId);
@@ -493,17 +487,19 @@ export const useNotificationStore = create<NotificationState>()(
       };
     },
     {
-      name: 'notification-storage',
+      name: 'geon-notification-storage',
       partialize: (state) => ({
-        // Only persist user notifications (not toast)
         userNotifications: state.userNotifications,
       }),
     }
   )
 );
 
-// Cleanup on unmount (for React components)
+// Cleanup on unmount
 if (typeof window !== 'undefined') {
   const originalStopPolling = useNotificationStore.getState().stopPolling;
   window.addEventListener('beforeunload', originalStopPolling);
+  
+  // Add cleanup on page hide
+  window.addEventListener('pagehide', originalStopPolling);
 }
