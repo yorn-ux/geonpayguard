@@ -548,6 +548,47 @@ async def unlock_account(
     
     return {"status": "success", "message": f"Identity {user_email} restored."}
 
+# --- 6. PUBLIC LOCK ACCOUNT ENDPOINT (GET) ---
+
+@router.get("/lock-account/{token}")
+async def lock_account_get(
+    token: str,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db)
+):
+    """Public GET endpoint to lock account - displays confirmation page"""
+    payload = decode_access_token(token)
+    if not payload or "sub" not in payload:
+        raise HTTPException(status_code=400, detail="Invalid or expired token.")
+    
+    user = db.query(User).filter(User.email == payload["sub"]).first()
+    if user and user.is_active:
+        user.is_active = False
+        db.commit()
+        
+        # Create lock notification
+        create_notification(
+            db=db,
+            operator_id=user.operator_id,
+            title="Account Locked",
+            message="Your account has been locked for security reasons.",
+            priority="HIGH",
+            category="security"
+        )
+        
+        background_tasks.add_task(send_locked_email, to_email=user.email)
+        
+        return {
+            "status": "success",
+            "message": "Account has been locked successfully.",
+            "email": user.email
+        }
+    
+    return {
+        "status": "info",
+        "message": "Account is already locked or not found."
+    }
+
 
 # Export everything needed by other modules
 __all__ = ["router", "get_current_user", "create_notification"]

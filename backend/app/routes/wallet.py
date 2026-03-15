@@ -12,7 +12,9 @@ import os
 
 from ..database import get_db
 from ..models.wallet import Wallet, Transaction, TransactionType, TransactionStatus, PlatformRevenue
+from ..models.user import User
 from .auth import get_current_user
+from ..services.email import send_deposit_notification, send_withdrawal_notification
 
 # PesaPal API Configuration - FIXED
 PESAPAL_BASE_URL = os.getenv("PESAPAL_BASE_URL", "https://cybqa.pesapal.com/pesapalv3")  # Fixed: added /pesapalv3
@@ -324,6 +326,19 @@ async def pesapal_webhook(request: Request, db: Session = Depends(get_db)):
             wallet = db.query(Wallet).filter(Wallet.id == transaction.wallet_id).first()
             if wallet and transaction.tx_type == TransactionType.DEPOSIT:
                 wallet.kes_balance += transaction.amount
+                
+                # Send deposit notification email
+                user = db.query(User).filter(User.operator_id == transaction.operator_id).first()
+                if user:
+                    try:
+                        send_deposit_notification(
+                            to_email=user.email,
+                            amount=float(transaction.amount),
+                            reference=transaction.tx_ref,
+                            currency=transaction.currency
+                        )
+                    except Exception as e:
+                        print(f"Failed to send deposit email: {e}")
             
             db.commit()
             
@@ -442,6 +457,17 @@ async def withdraw_mpesa(
         # Store PesaPal references
         tx.provider_ref = pesapal_result.get("order_tracking_id")
         db.commit()
+        
+        # Send withdrawal notification email
+        try:
+            send_withdrawal_notification(
+                to_email=current_user["email"],
+                amount=float(amount),
+                reference=reference,
+                currency="KES"
+            )
+        except Exception as e:
+            print(f"Failed to send withdrawal email: {e}")
         
         return {
             "status": "processing",

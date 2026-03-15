@@ -280,6 +280,44 @@ class GeonEmailService:
         """
         return self._send_email(to_email, subject, self._get_html_wrapper(content))
 
+    def send_deposit_notification(self, to_email: str, amount: float, reference: str, currency: str = "KES") -> bool:
+        """Send deposit notification email"""
+        if not self.enabled:
+            logger.warning(f"📧 [TEST MODE] Deposit notification to: {to_email} - {currency} {amount}")
+            return False
+            
+        subject = f"Deposit Confirmed - {currency} {amount:,.2f}"
+        content = f"""
+            <h2 style="color: #059669; font-weight: 800;">Deposit Successful!</h2>
+            <p style="color: #475569; font-size: 16px;">Your wallet has been credited successfully.</p>
+            <div style="background: #f1f5f9; padding: 20px; border-radius: 10px; margin: 20px 0;">
+                <p style="margin: 8px 0;"><strong>Amount:</strong> {currency} {amount:,.2f}</p>
+                <p style="margin: 8px 0;"><strong>Reference:</strong> {reference}</p>
+                <p style="margin: 8px 0;"><strong>Status:</strong> <span style="color: #059669;">Completed</span></p>
+            </div>
+            <p style="color: #64748b; font-size: 14px;">You can view your transaction history in your wallet dashboard.</p>
+        """
+        return self._send_email(to_email, subject, self._get_html_wrapper(content))
+
+    def send_withdrawal_notification(self, to_email: str, amount: float, reference: str, currency: str = "KES") -> bool:
+        """Send withdrawal notification email"""
+        if not self.enabled:
+            logger.warning(f"📧 [TEST MODE] Withdrawal notification to: {to_email} - {currency} {amount}")
+            return False
+            
+        subject = f"Withdrawal Initiated - {currency} {amount:,.2f}"
+        content = f"""
+            <h2 style="color: #0ea5e9; font-weight: 800;">Withdrawal Processing</h2>
+            <p style="color: #475569; font-size: 16px;">Your withdrawal request has been initiated.</p>
+            <div style="background: #f1f5f9; padding: 20px; border-radius: 10px; margin: 20px 0;">
+                <p style="margin: 8px 0;"><strong>Amount:</strong> {currency} {amount:,.2f}</p>
+                <p style="margin: 8px 0;"><strong>Reference:</strong> {reference}</p>
+                <p style="margin: 8px 0;"><strong>Status:</strong> <span style="color: #f59e0b;">Processing</span></p>
+            </div>
+            <p style="color: #64748b; font-size: 14px;">Funds will be sent to your M-PESA registered phone number. This may take a few minutes.</p>
+        """
+        return self._send_email(to_email, subject, self._get_html_wrapper(content))
+
     def _send_email(self, to: str, subject: str, html: str) -> bool:
         """Internal method to send email via Resend"""
         if not self.enabled:
@@ -322,3 +360,11 @@ def send_locked_email(to_email: str) -> bool:
 def send_restored_email(to_email: str) -> bool:
     """Send account restored notification"""
     return email_service.send_account_restored_notification(to_email)
+
+def send_deposit_notification(to_email: str, amount: float, reference: str, currency: str = "KES") -> bool:
+    """Send deposit notification email"""
+    return email_service.send_deposit_notification(to_email, amount, reference, currency)
+
+def send_withdrawal_notification(to_email: str, amount: float, reference: str, currency: str = "KES") -> bool:
+    """Send withdrawal notification email"""
+    return email_service.send_withdrawal_notification(to_email, amount, reference, currency)

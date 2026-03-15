@@ -92,6 +92,15 @@ async def get_pesapal_token() -> str:
             
             if response.status_code == 200:
                 result = response.json()
+                # Check for error in response body (PesaPal sometimes returns 200 with error)
+                if result.get("error") or result.get("status") == "500":
+                    error_info = result.get("error", {})
+                    error_code = error_info.get("code", "unknown_error")
+                    logger.error(f"PesaPal token error: {error_code} - {result}")
+                    raise HTTPException(
+                        status_code=400, 
+                        detail=f"PesaPal authentication failed: {error_code.replace('_', ' ').title()}"
+                    )
                 token = result.get("token") or result.get("access_token")
                 if not token:
                     logger.error(f"PesaPal token response missing token field: {result}")
