@@ -17,13 +17,14 @@ logger = logging.getLogger(__name__)
 
 # M-Pesa API Configuration
 MPESA_ENVIRONMENT = os.getenv("MPESA_ENVIRONMENT", "sandbox")  # sandbox or production
-MPESA_BASE_URL = "https://sandbox.safaricom.co.ke" if MPESA_ENVIRONMENT == "sandbox" else "https://api.safaricom.co.ke"
+MPESA_BASE_URL = os.getenv("MPESA_BASE_URL", "https://sandbox.safaricom.co.ke")
+MPESA_API_URL = os.getenv("MPESA_API_URL", "https://sandbox.safaricom.co.ke")
 
 # M-Pesa Credentials - Use environment variables or fall back to provided credentials
 MPESA_CONSUMER_KEY = os.getenv("MPESA_CONSUMER_KEY", "eFd1HfCrZ12aGQBXiO79aaLL6OyAUb8qVgbc57XabVXThksn")
 MPESA_CONSUMER_SECRET = os.getenv("MPESA_CONSUMER_SECRET", "lSVsuX0jGafFc4k6GkZnFAbPGy1AO1d3MsJ7QdArnPc4QAHootES2oylzvtWDJog")
 MPESA_SHORTCODE = os.getenv("MPESA_SHORTCODE", "600991")
-MPESA_PASSKEY = os.getenv("MPESA_PASSKEY", "Password123!")
+MPESA_PASSKEY = os.getenv("MPESA_PASSKEY", "bfb279351ed69cf452b0412e46e94f2e9a4b88dca3c6a56e3c1c3a3d9ecb6c5a")
 MPESA_INITIATOR_NAME = os.getenv("MPESA_INITIATOR_NAME", "testapi")
 MPESA_INITIATOR_PASSWORD = os.getenv("MPESA_INITIATOR_PASSWORD", "kStrzj9$Guk$W7B")
 MPESA_SECURITY_CREDENTIAL = os.getenv("MPESA_SECURITY_CREDENTIAL", "loOFYgAWhQt0PIireZnntfMMmc3LlCH3gFUnEdiKTTfvoFyyW0dWvVh+ReuTIkm8NlTHGV+JylzU8xOy9AJ/JhVyivazmN6RdZeP5AtvL4lVqJq6ubzdiTI9LnbufyB8osCOTVM4jXE7jTskyzs4G34tPEAQV3ZYyzSCW8V5w7pEuWl9Zeh29Wq5ORE6mAdNm453Tvy4qO26AWKbFc6nZnSBuoKZgHjI/SvDia1GhlqUKRV7eO2BxrB2lMekkqFlS56xF4TBVQQ05Cr1Gaud0wSdJwJ3kRhhQNoF3CkqiOO/F8CqFSnWWVQAP6UdJuylGoK1s/iKm9JsH+YAPcGqQA==")
