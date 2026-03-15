@@ -183,11 +183,21 @@ function LayoutContent({ children }: { children: React.ReactNode }) {
       }
 
       // Check both cookie and localStorage for authentication
-      // Cookie check is more reliable as it's set by the server/login process
-      const hasToken = document.cookie.includes('geon_token=');
+      // Unified token retrieval - matches settings/support page logic
+      const getCookie = (name: string): string | null => {
+        const value = `; ${document.cookie}`;
+        const parts = value.split(`; ${name}=`);
+        if (parts.length === 2) {
+          return parts.pop()?.split(';').shift() || null;
+        }
+        return null;
+      };
+      
+      // Check auth_token in localStorage first (primary), fallback to geon_token cookie
+      const authToken = localStorage.getItem('auth_token') || getCookie('geon_token');
       const stored = localStorage.getItem('geon_user');
 
-      if (!hasToken || !stored) {
+      if (!authToken || !stored) {
         // No authentication - let middleware handle redirect
         // But we can also redirect to login as a fallback
         router.push('/auth/login?t=' + Date.now());
