@@ -59,6 +59,61 @@ export default function InfluencerSettings({ data: initialData }: { data: any })
   const [editingField, setEditingField] = useState<string | null>(null);
   const [editValue, setEditValue] = useState<any>('');
   const [isFreezing, setIsFreezing] = useState(false);
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
+
+  const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Validate file type
+    if (!file.type.startsWith('image/')) {
+      alert('Please select an image file');
+      return;
+    }
+
+    // Validate file size (max 5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      alert('File size must be less than 5MB');
+      return;
+    }
+
+    setUploadingAvatar(true);
+    try {
+      const token = localStorage.getItem('auth_token');
+      const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+
+      const formData = new FormData();
+      formData.append('file', file);
+
+      const response = await fetch(`${API_URL}/api/v1/settings/upload-avatar`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        },
+        body: formData
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        // Update local storage with new avatar
+        const storedUser = localStorage.getItem('geon_user');
+        if (storedUser) {
+          const parsed = JSON.parse(storedUser);
+          parsed.avatar_url = data.url;
+          localStorage.setItem('geon_user', JSON.stringify(parsed));
+        }
+        // Refresh the page to show new avatar
+        window.location.reload();
+      } else {
+        alert('Failed to upload avatar');
+      }
+    } catch (error) {
+      console.error('Upload error:', error);
+      alert('Error uploading avatar');
+    } finally {
+      setUploadingAvatar(false);
+    }
+  };
 
   const freezeAccount = async () => {
     setIsFreezing(true);
@@ -271,8 +326,18 @@ export default function InfluencerSettings({ data: initialData }: { data: any })
                         )}
                       </div>
                       <label className="absolute bottom-0 right-0 w-8 h-8 bg-rose-500 rounded-full flex items-center justify-center text-white hover:bg-rose-600 transition-colors shadow-sm cursor-pointer">
-                        <Camera size={14} />
-                        <input type="file" className="hidden" accept="image/*" />
+                        {uploadingAvatar ? (
+                          <span className="animate-spin text-xs">⏳</span>
+                        ) : (
+                          <Camera size={14} />
+                        )}
+                        <input 
+                          type="file" 
+                          className="hidden" 
+                          accept="image/*"
+                          onChange={handleAvatarUpload}
+                          disabled={uploadingAvatar}
+                        />
                       </label>
                     </div>
                     <div>

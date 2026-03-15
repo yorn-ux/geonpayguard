@@ -9,7 +9,8 @@ import {
   DollarSign, Calendar, Briefcase,
   Hash, MapPinned, 
   Wallet, Settings,
-  Home,  LogOut
+  Home,  LogOut,
+  Camera
 } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -30,6 +31,57 @@ export default function BusinessSettings({ data }: any) {
   const [editingField, setEditingField] = useState<string | null>(null);
   const [editingValue, setEditingValue] = useState('');
   const [isFreezing, setIsFreezing] = useState(false);
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
+
+  const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      alert('Please select an image file');
+      return;
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      alert('File size must be less than 5MB');
+      return;
+    }
+
+    setUploadingAvatar(true);
+    try {
+      const token = localStorage.getItem('auth_token');
+      const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+
+      const formData = new FormData();
+      formData.append('file', file);
+
+      const response = await fetch(`${API_URL}/api/v1/settings/upload-avatar`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        },
+        body: formData
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        const storedUser = localStorage.getItem('geon_user');
+        if (storedUser) {
+          const parsed = JSON.parse(storedUser);
+          parsed.avatar_url = data.url;
+          localStorage.setItem('geon_user', JSON.stringify(parsed));
+        }
+        window.location.reload();
+      } else {
+        alert('Failed to upload avatar');
+      }
+    } catch (error) {
+      console.error('Upload error:', error);
+      alert('Error uploading avatar');
+    } finally {
+      setUploadingAvatar(false);
+    }
+  };
 
   const freezeAccount = async () => {
     setIsFreezing(true);
@@ -342,6 +394,37 @@ export default function BusinessSettings({ data }: any) {
                 <div className="flex items-center gap-2 mb-6">
                   <Building2 size={18} className="text-rose-500" />
                   <h2 className="text-sm font-medium text-gray-700">Company Information</h2>
+                </div>
+
+                {/* Company Avatar Upload */}
+                <div className="flex items-center gap-4 mb-6">
+                  <div className="relative">
+                    <div className="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center">
+                      {identity.avatar_url ? (
+                        <img src={identity.avatar_url} alt="Company" className="w-full h-full rounded-full object-cover" />
+                      ) : (
+                        <Building2 size={32} className="text-gray-400" />
+                      )}
+                    </div>
+                    <label className="absolute bottom-0 right-0 w-8 h-8 bg-rose-500 rounded-full flex items-center justify-center text-white hover:bg-rose-600 transition-colors shadow-sm cursor-pointer">
+                      {uploadingAvatar ? (
+                        <span className="animate-spin text-xs">⏳</span>
+                      ) : (
+                        <Camera size={14} />
+                      )}
+                      <input 
+                        type="file" 
+                        className="hidden" 
+                        accept="image/*"
+                        onChange={handleAvatarUpload}
+                        disabled={uploadingAvatar}
+                      />
+                    </label>
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-gray-900">Company Logo</p>
+                    <p className="text-xs text-gray-500">JPG, PNG or GIF. Max 5MB.</p>
+                  </div>
                 </div>
                 
                 <EditableHero
