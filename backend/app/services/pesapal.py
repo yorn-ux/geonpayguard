@@ -24,7 +24,12 @@ def get_pesapal_credentials() -> Dict[str, str]:
     """Get PesaPal credentials."""
     if not PESAPAL_CONSUMER_KEY or not PESAPAL_CONSUMER_SECRET:
         logger.error("PesaPal credentials not configured")
-        raise HTTPException(status_code=500, detail="Payment service not properly configured")
+        raise HTTPException(status_code=500, detail="Payment service not properly configured - missing credentials")
+    
+    # Check for placeholder values
+    if PESAPAL_CONSUMER_KEY == "YOUR_PESAPAL_CONSUMER_KEY_HERE" or PESAPAL_CONSUMER_SECRET == "YOUR_PESAPAL_CONSUMER_SECRET_HERE":
+        logger.error("PesaPal credentials are placeholder values - please update in .env")
+        raise HTTPException(status_code=500, detail="Payment service not configured - please update PesaPal credentials")
     
     return {
         "consumer_key": PESAPAL_CONSUMER_KEY,

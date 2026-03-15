@@ -80,8 +80,23 @@ async def send_security_alert(
         # 1. Create the special security token
         token = create_security_token(to_email)
         
-        # 2. Get the Base URL from .env (fallback to localhost for safety)
-        base_url = os.getenv("BACKEND_URL", "http://localhost:8000").rstrip("/")
+        # 2. Get the Base URL from .env (fallback to APP_URL for production)
+        # In production (Render), BACKEND_URL should be set as environment variable
+        environment = os.getenv("ENVIRONMENT", "development").lower()
+        base_url = os.getenv("BACKEND_URL")
+        
+        # If BACKEND_URL is not set, try APP_URL as fallback for production
+        if not base_url:
+            if environment == "production":
+                # Use the Render/production URL from environment
+                base_url = os.getenv("APP_URL", "")
+                if not base_url:
+                    # Last resort fallback - this should be set in Render dashboard
+                    base_url = "https://geonpayguard.onrender.com"
+            else:
+                base_url = "http://localhost:8000"
+        
+        base_url = base_url.rstrip("/")
         
         # 3. Construct the link using the dynamic base
         lock_link = f"{base_url}/auth/lock-account/{token}"

@@ -22,8 +22,16 @@ class GeonEmailService:
         # Critical: These MUST come from .env
         self.frontend_url = os.getenv("FRONTEND_URL")
         self.backend_url = os.getenv("BACKEND_URL")
+        
+        # For production, use APP_URL as fallback if BACKEND_URL not set
+        environment = os.getenv("ENVIRONMENT", "development").lower()
+        if not self.backend_url and environment == "production":
+            self.backend_url = os.getenv("APP_URL", "https://geonpayguard.onrender.com")
+        elif not self.backend_url:
+            self.backend_url = "http://localhost:8000"
 
         # Validate required environment variables
+        # Note: BACKEND_URL has a fallback, so we only warn about it
         missing_vars = []
         if not self.api_key:
             missing_vars.append("RESEND_API_KEY")
@@ -32,7 +40,7 @@ class GeonEmailService:
         if not self.frontend_url:
             missing_vars.append("FRONTEND_URL")
         if not self.backend_url:
-            missing_vars.append("BACKEND_URL")
+            logger.warning("BACKEND_URL not set - using fallback (check in production!)")
 
         self.enabled = False
         if self.api_key and self.from_email and self.frontend_url and self.backend_url:
