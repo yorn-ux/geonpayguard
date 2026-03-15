@@ -68,19 +68,37 @@ async def get_pesapal_token() -> str:
         creds = get_pesapal_credentials()
         url = f"{PESAPAL_BASE_URL}/api/Auth/RequestToken"
         
+        # PesaPal might require form data instead of JSON
         payload = {
             "consumer_key": creds["consumer_key"],
             "consumer_secret": creds["consumer_secret"]
         }
         
+        # Try with form-encoded data (some PesaPal endpoints require this)
         async with httpx.AsyncClient() as client:
-            response = await client.post(url, json=payload, timeout=30)
+            # First try with form-encoded
+            response = await client.post(
+                url, 
+                data=payload,  # form-encoded instead of json
+                headers={"Content-Type": "application/x-www-form-urlencoded"},
+                timeout=30
+            )
             
-            logger.info(f"PesaPal token request response: {response.status_code} - {response.text}")
+            logger.info(f"PesaPal token request (form): {response.status_code} - {response.text[:200]}")
             
             if response.status_code == 200:
                 result = response.json()
-                # PesaPal returns token in different formats depending on API version
+                token = result.get("token") or result.get("access_token")
+                if token:
+                    return token
+            
+            # If form-encoded didn't work, try JSON
+            response = await client.post(url, json=payload, timeout=30)
+            
+            logger.info(f"PesaPal token request (json): {response.status_code} - {response.text[:200]}")
+            
+            if response.status_code == 200:
+                result = response.json()
                 token = result.get("token") or result.get("access_token")
                 if not token:
                     logger.error(f"PesaPal token response missing token field: {result}")
