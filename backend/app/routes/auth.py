@@ -365,11 +365,15 @@ async def login(
     )
 
     # Create login notification
+    user_agent = request.headers.get("user-agent", "Unknown Device")
+    # Shorten user agent for notification
+    short_ua = user_agent[:60] + "..." if len(user_agent) > 60 else user_agent
+    
     create_notification(
         db=db,
         operator_id=user.operator_id,
         title="New Login Detected",
-        message=f"New login from {request.client.host}. If this wasn't you, click to freeze your account and our support team will contact you.",
+        message=f"New login from {request.client.host} ({short_ua}). If this wasn't you, click to freeze your account and our support team will contact you.",
         priority="LOW",
         category="security",
         action_url="/settings"
