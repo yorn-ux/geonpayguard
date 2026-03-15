@@ -4,8 +4,9 @@ import React, { useState, useEffect } from 'react';
 import { 
   X, Smartphone, Bitcoin, Loader2, 
   CheckCircle, Shield, ArrowLeft, AlertCircle,
-  CreditCard, Clock
-} from 'lucide-react';  // Removed ExternalLink from imports
+  CreditCard, Clock, Lock,  Gem,
+  BadgeCheck, Wallet, Sparkles
+} from 'lucide-react';
 import { useNotificationStore } from '@/store/useNotificationStore';
 
 interface WithdrawalModalProps {
@@ -33,18 +34,30 @@ export default function WithdrawalModal({ isOpen, onClose, balances, walletAddre
   // Stats for dynamic fee calculation
   const [stats, setStats] = useState({ count: 0, total_withdrawn: 0 });
 
+  // Professional Logo Component
+  const GeonLogo = () => (
+    <div className="relative flex items-center justify-center">
+      <div className="relative w-8 h-8">
+        <div className="absolute inset-0 bg-gradient-to-br from-slate-900 to-slate-800 rounded-xl rotate-6 shadow-lg" />
+        <div className="absolute inset-[2px] bg-gradient-to-br from-slate-800 to-slate-900 rounded-lg rotate-6" />
+        <div className="absolute inset-0 flex items-center justify-center">
+          <Gem size={12} className="text-amber-400" strokeWidth={1.5} />
+        </div>
+        <div className="absolute -top-1 -right-1 w-1.5 h-1.5 bg-emerald-500 rounded-full ring-2 ring-white animate-pulse" />
+      </div>
+    </div>
+  );
+
   // Auth helper
   const getAuthToken = () => {
     return localStorage.getItem('auth_token') || 
            document.cookie.split('; ').find(row => row.startsWith('geon_token='))?.split('=')[1];
   };
 
-  // Format phone number for Intasend API
+  // Format phone number for API
   const formatPhoneNumber = (phone: string): string => {
-    // Remove all non-numeric characters
     let cleaned = phone.replace(/\D/g, '');
     
-    // Convert to 254 format
     if (cleaned.startsWith('0')) {
       cleaned = '254' + cleaned.substring(1);
     } else if (cleaned.startsWith('7')) {
@@ -103,7 +116,7 @@ export default function WithdrawalModal({ isOpen, onClose, balances, walletAddre
     }
   };
 
-  // Check withdrawal status with Intasend
+  // Check withdrawal status with payment gateway
   const checkWithdrawalStatus = async (payoutId: string) => {
     try {
       const token = getAuthToken();
@@ -127,7 +140,7 @@ export default function WithdrawalModal({ isOpen, onClose, balances, walletAddre
   // Polling for withdrawal status
   const startPolling = (payoutId: string) => {
     let attempts = 0;
-    const maxAttempts = 20; // 60 seconds max (3s * 20)
+    const maxAttempts = 20;
     
     const interval = setInterval(async () => {
       attempts++;
@@ -136,7 +149,6 @@ export default function WithdrawalModal({ isOpen, onClose, balances, walletAddre
         const status = await checkWithdrawalStatus(payoutId);
         
         if (status) {
-          // Check Intasend payout status
           if (status.transaction_state === 'COMPLETED' || status.status === 'completed') {
             clearInterval(interval);
             setStep('success');
@@ -152,18 +164,16 @@ export default function WithdrawalModal({ isOpen, onClose, balances, walletAddre
           }
         }
         
-        // Timeout after max attempts
         if (attempts >= maxAttempts) {
           clearInterval(interval);
           setPollingInterval(null);
-          // Don't show as failed, just let user know it's processing
           showToast('Withdrawal is still processing. Check back later.', 'info');
         }
         
       } catch (err) {
         console.error('Polling error:', err);
       }
-    }, 3000); // Poll every 3 seconds
+    }, 3000);
 
     setPollingInterval(interval);
   };
@@ -186,11 +196,11 @@ export default function WithdrawalModal({ isOpen, onClose, balances, walletAddre
     
     feePercentage = Math.max(0.25, feePercentage - loyaltyDiscount - volumeDiscount);
     
-    // Intasend M-PESA payout fee (typically higher than deposits)
-    if (method === 'mpesa') feePercentage += 0.25; // Additional 0.25% for M-PESA payouts
+    // Additional fee for M-PESA payouts
+    if (method === 'mpesa') feePercentage += 0.25;
     
     const fee = (inputAmount * feePercentage) / 100;
-    return Math.max(fee, method === 'mpesa' ? 45 : 5); // Minimum fee: M-PESA = KES 45, Crypto = $5
+    return Math.max(fee, method === 'mpesa' ? 45 : 5);
   };
   
   const fee = calculateFee();
@@ -201,7 +211,6 @@ export default function WithdrawalModal({ isOpen, onClose, balances, walletAddre
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    // Validation
     if (inputAmount < minAmount) {
       setError(`Minimum withdrawal is ${method === 'mpesa' ? 'KES 50' : '$10'}`);
       return;
@@ -213,7 +222,6 @@ export default function WithdrawalModal({ isOpen, onClose, balances, walletAddre
     
     if (method === 'mpesa') {
       try {
-        // Validate phone format
         formatPhoneNumber(destination);
       } catch (err: any) {
         setError(err.message);
@@ -236,7 +244,6 @@ export default function WithdrawalModal({ isOpen, onClose, balances, walletAddre
         throw new Error('Authentication required');
       }
 
-      // Generate a unique reference
       const reference = `WDR_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
       
       const endpoint = method === 'mpesa' 
@@ -251,7 +258,6 @@ export default function WithdrawalModal({ isOpen, onClose, balances, walletAddre
         fee_percentage: parseFloat(feePercentage)
       };
 
-      // Add destination based on method
       if (method === 'mpesa') {
         requestBody.phone = formatPhoneNumber(destination);
         requestBody.provider = 'MPESA';
@@ -274,15 +280,12 @@ export default function WithdrawalModal({ isOpen, onClose, balances, walletAddre
         throw new Error(data.detail || data.message || 'Withdrawal request failed');
       }
 
-      // Store withdrawal identifiers
       setWithdrawalId(data.withdrawal_id || data.payout_id || data.id);
       setTrackingId(data.tracking_id || '');
 
-      // Start polling for M-PESA withdrawals
       if (method === 'mpesa' && (data.payout_id || data.id)) {
         startPolling(data.payout_id || data.id);
       } else {
-        // For crypto or if no polling, just show success
         setStep('success');
         showToast('Withdrawal initiated successfully', 'success');
       }
@@ -307,108 +310,121 @@ export default function WithdrawalModal({ isOpen, onClose, balances, walletAddre
 
   return (
     <div className="fixed inset-0 z-[150] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-      <div className="bg-white w-full max-w-md rounded-2xl shadow-xl overflow-hidden border border-gray-100 animate-in zoom-in-95 duration-200">
+      <div className="bg-white w-full max-w-md rounded-3xl shadow-2xl overflow-hidden border border-slate-200 animate-in zoom-in-95 duration-200">
         
+        {/* Top Gradient Bar */}
+        <div className="h-2 bg-gradient-to-r from-amber-500 to-amber-400" />
+
         {/* HEADER */}
-        <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between bg-white">
+        <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-white">
           <div className="flex items-center gap-3">
             {(step === 'failed' || step === 'processing') && (
               <button 
                 onClick={() => setStep('form')} 
-                className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors"
+                className="p-2 hover:bg-slate-100 rounded-xl transition-colors"
                 disabled={step === 'processing'}
               >
-                <ArrowLeft size={18} className="text-gray-600" />
+                <ArrowLeft size={18} className="text-slate-600" />
               </button>
             )}
-            <div>
-              <h2 className="text-base font-semibold text-gray-900">
-                {step === 'form' ? 'Withdraw Funds' : 
-                 step === 'processing' ? 'Processing' : 
-                 step === 'success' ? 'Withdrawal Initiated' : 'Failed'}
-              </h2>
-              <div className="flex items-center gap-1 mt-0.5">
-                <Shield size={10} className="text-emerald-600" />
-                <span className="text-[10px] text-gray-400">Secured by PesaPal</span>
+            <div className="flex items-center gap-2">
+              <GeonLogo />
+              <div>
+                <h2 className="text-base font-black text-slate-900">
+                  {step === 'form' ? 'Withdraw Funds' : 
+                   step === 'processing' ? 'Processing Withdrawal' : 
+                   step === 'success' ? 'Withdrawal Complete' : 'Transaction Failed'}
+                </h2>
+                <div className="flex items-center gap-1 mt-0.5">
+                  <Lock size={10} className="text-emerald-600" />
+                  <span className="text-[9px] font-mono text-slate-400">Secured Payment Gateway</span>
+                  <BadgeCheck size={10} className="text-emerald-500" />
+                </div>
               </div>
             </div>
           </div>
           <button 
             onClick={handleClose} 
-            className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors"
+            className="p-2 hover:bg-slate-100 rounded-xl transition-colors"
             disabled={step === 'processing'}
           >
-            <X size={18} className="text-gray-400" />
+            <X size={18} className="text-slate-400" />
           </button>
         </div>
 
-        <div className="p-5">
+        <div className="p-6">
           {step === 'form' && (
             <form onSubmit={handleSubmit} className="space-y-5">
               {/* ASSET SELECTOR */}
               <div className="space-y-2">
-                <label className="text-xs text-gray-500">Withdrawal Method</label>
-                <div className="grid grid-cols-2 gap-2">
+                <label className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+                  <Wallet size={12} className="text-amber-500" />
+                  Withdrawal Method
+                </label>
+                <div className="grid grid-cols-2 gap-3">
                   <button 
                     type="button" 
                     onClick={() => setMethod('mpesa')}
-                    className={`flex items-center gap-2 px-3 py-3 rounded-lg border transition-all ${
+                    className={`flex items-center gap-2 px-3 py-4 rounded-xl border-2 transition-all ${
                       method === 'mpesa' 
-                        ? 'bg-emerald-50 border-emerald-200 text-emerald-700' 
-                        : 'bg-gray-50 border-gray-200 text-gray-600 hover:bg-gray-100'
+                        ? 'bg-emerald-50 border-emerald-300 text-emerald-700 shadow-sm' 
+                        : 'bg-white border-slate-200 text-slate-600 hover:border-emerald-200 hover:bg-emerald-50/30'
                     }`}
                   >
-                    <Smartphone size={18} />
-                    <span className="text-sm font-medium">M-PESA</span>
+                    <Smartphone size={20} />
+                    <span className="text-sm font-black">M-PESA</span>
                   </button>
                   
                   <button 
                     type="button" 
                     onClick={() => setMethod('crypto')}
-                    className={`flex items-center gap-2 px-3 py-3 rounded-lg border transition-all ${
+                    className={`flex items-center gap-2 px-3 py-4 rounded-xl border-2 transition-all ${
                       method === 'crypto' 
-                        ? 'bg-blue-50 border-blue-200 text-blue-700' 
-                        : 'bg-gray-50 border-gray-200 text-gray-600 hover:bg-gray-100'
+                        ? 'bg-blue-50 border-blue-300 text-blue-700 shadow-sm' 
+                        : 'bg-white border-slate-200 text-slate-600 hover:border-blue-200 hover:bg-blue-50/30'
                     }`}
                   >
-                    <Bitcoin size={18} />
-                    <span className="text-sm font-medium">Crypto</span>
+                    <Bitcoin size={20} />
+                    <span className="text-sm font-black">Crypto</span>
                   </button>
                 </div>
               </div>
 
               {/* BALANCE STATUS */}
-              <div className="bg-gray-50 p-4 rounded-lg border border-gray-100">
-                <p className="text-xs text-gray-500 mb-1">Available Balance</p>
-                <p className="text-xl font-semibold text-gray-900">
+              <div className="bg-gradient-to-br from-slate-50 to-white p-5 rounded-xl border-2 border-slate-200">
+                <p className="text-xs font-bold text-slate-500 mb-1 flex items-center gap-1.5">
+                  <Wallet size={12} className="text-amber-500" />
+                  Available Balance
+                </p>
+                <p className="text-2xl font-black text-slate-900">
                   {method === 'mpesa' ? balances.kes : balances.usdt} 
-                  <span className="text-sm text-gray-400 ml-1">{method === 'mpesa' ? 'KES' : 'USDT'}</span>
+                  <span className="text-sm font-bold text-slate-400 ml-2">{method === 'mpesa' ? 'KES' : 'USDT'}</span>
                 </p>
               </div>
 
               {/* INPUT FIELDS */}
               <div className="space-y-4">
                 <div>
-                  <label className="text-xs text-gray-500 mb-1 block">Amount</label>
+                  <label className="text-xs font-bold text-slate-700 mb-1.5 block">Amount</label>
                   <div className="relative">
                     <input
                       type="number" 
                       value={amount} 
                       onChange={(e) => setAmount(e.target.value)}
-                      className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-lg text-sm outline-none focus:border-rose-400 focus:ring-2 focus:ring-rose-100 transition-all"
+                      className="w-full px-4 py-4 bg-white border-2 border-slate-200 rounded-xl text-sm outline-none focus:border-amber-500 focus:ring-4 focus:ring-amber-500/10 transition-all font-bold"
                       placeholder="0.00" 
                       required
                       min={minAmount}
                       step="0.01"
                     />
-                    <div className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-gray-400">
+                    <div className="absolute right-4 top-1/2 -translate-y-1/2 text-sm font-bold text-slate-400">
                       {method === 'mpesa' ? 'KES' : 'USDT'}
                     </div>
                   </div>
                 </div>
 
                 <div>
-                  <label className="text-xs text-gray-500 mb-1 block">
+                  <label className="text-xs font-bold text-slate-700 mb-1.5 block">
                     {method === 'mpesa' ? 'M-PESA Phone Number' : 'Wallet Address'}
                   </label>
                   {method === 'mpesa' ? (
@@ -416,19 +432,19 @@ export default function WithdrawalModal({ isOpen, onClose, balances, walletAddre
                       type="tel" 
                       value={destination} 
                       onChange={(e) => setDestination(e.target.value)}
-                      className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-lg text-sm outline-none focus:border-rose-400 focus:ring-2 focus:ring-rose-100 transition-all"
+                      className="w-full px-4 py-4 bg-white border-2 border-slate-200 rounded-xl text-sm outline-none focus:border-amber-500 focus:ring-4 focus:ring-amber-500/10 transition-all"
                       placeholder="0712 345 678" 
                       required
                     />
                   ) : (
-                    <div className="p-3 bg-gray-50 rounded-lg border border-gray-200">
-                      <p className="text-xs font-mono text-gray-600 break-all">
+                    <div className="p-4 bg-slate-50 rounded-xl border-2 border-slate-200">
+                      <p className="text-xs font-mono text-slate-600 break-all">
                         {walletAddress || 'Connect wallet to continue'}
                       </p>
                     </div>
                   )}
                   {method === 'mpesa' && (
-                    <p className="text-[10px] text-gray-400 mt-1">
+                    <p className="text-[10px] font-mono text-slate-400 mt-1">
                       Enter the M-PESA registered phone number
                     </p>
                   )}
@@ -436,16 +452,16 @@ export default function WithdrawalModal({ isOpen, onClose, balances, walletAddre
               </div>
 
               {/* CARD METHOD - Coming Soon */}
-              <div className="bg-gray-50 p-4 rounded-lg border border-gray-200 opacity-60">
+              <div className="bg-slate-50 p-5 rounded-xl border-2 border-slate-200 opacity-60">
                 <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 bg-gray-200 rounded-lg flex items-center justify-center">
-                    <CreditCard size={16} className="text-gray-400" />
+                  <div className="w-10 h-10 bg-slate-200 rounded-xl flex items-center justify-center">
+                    <CreditCard size={18} className="text-slate-500" />
                   </div>
                   <div className="flex-1">
-                    <p className="text-sm font-medium text-gray-500">Bank Card Withdrawal</p>
-                    <p className="text-xs text-gray-400">Visa, Mastercard, Amex</p>
+                    <p className="text-sm font-black text-slate-500">Card Withdrawal</p>
+                    <p className="text-xs text-slate-400">Visa, Mastercard, Amex</p>
                   </div>
-                  <span className="text-xs px-2 py-1 bg-amber-100 text-amber-700 rounded-full font-medium flex items-center gap-1">
+                  <span className="text-xs px-3 py-1.5 bg-amber-100 text-amber-700 rounded-full font-bold flex items-center gap-1 border border-amber-200">
                     <Clock size={12} /> Coming Soon
                   </span>
                 </div>
@@ -453,16 +469,16 @@ export default function WithdrawalModal({ isOpen, onClose, balances, walletAddre
 
               {/* TRANSACTION PREVIEW */}
               {inputAmount > 0 && (
-                <div className="bg-gray-50 p-4 rounded-lg border border-gray-100 space-y-2">
+                <div className="bg-slate-50 p-5 rounded-xl border-2 border-slate-200 space-y-3">
                   <div className="flex justify-between text-sm">
-                    <span className="text-gray-500">Fee ({feePercentage}%)</span>
-                    <span className="font-medium text-gray-900">
+                    <span className="text-slate-500 font-bold">Fee ({feePercentage}%)</span>
+                    <span className="font-black text-slate-900">
                       {method === 'mpesa' ? 'KES' : '$'}{fee.toFixed(2)}
                     </span>
                   </div>
-                  <div className="flex justify-between text-sm pt-2 border-t border-gray-200">
-                    <span className="text-gray-700">You receive</span>
-                    <span className="font-semibold text-emerald-600">
+                  <div className="flex justify-between text-sm pt-3 border-t-2 border-slate-200">
+                    <span className="text-slate-700 font-black">You receive</span>
+                    <span className="font-black text-emerald-600">
                       {method === 'mpesa' ? 'KES' : '$'}{youReceive.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </span>
                   </div>
@@ -470,79 +486,85 @@ export default function WithdrawalModal({ isOpen, onClose, balances, walletAddre
               )}
 
               {error && (
-                <div className="flex items-center gap-2 p-3 bg-rose-50 border border-rose-100 rounded-lg text-rose-600 text-sm">
-                  <AlertCircle size={16} />
-                  <span>{error}</span>
+                <div className="flex items-center gap-3 p-4 bg-rose-50 border-2 border-rose-200 rounded-xl text-rose-600 text-sm">
+                  <AlertCircle size={18} className="shrink-0" />
+                  <span className="font-bold">{error}</span>
                 </div>
               )}
 
               <button
                 type="submit"
                 disabled={loading || inputAmount <= 0}
-                className="w-full py-3 bg-rose-500 text-white rounded-lg text-sm font-medium hover:bg-rose-600 transition-all disabled:opacity-50 shadow-sm"
+                className="w-full py-4 bg-gradient-to-r from-amber-600 to-amber-500 hover:from-amber-700 hover:to-amber-600 text-white rounded-xl text-sm font-bold transition-all disabled:opacity-50 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5"
               >
                 {loading ? <Loader2 size={18} className="animate-spin mx-auto" /> : 'Withdraw Funds'}
               </button>
 
-              <p className="text-[10px] text-center text-gray-400">
-                Withdrawals are processed via PesaPal and may take a few minutes
+              <p className="text-[9px] text-center text-slate-400 font-mono">
+                Withdrawals are processed via secure gateway and may take a few minutes
               </p>
             </form>
           )}
 
           {step === 'processing' && (
-            <div className="py-8 text-center space-y-4">
-              <div className="relative w-16 h-16 mx-auto">
-                <Loader2 size={64} className="animate-spin text-rose-500 opacity-20" />
-                <Shield size={24} className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-rose-500" />
+            <div className="py-10 text-center space-y-4">
+              <div className="relative w-20 h-20 mx-auto">
+                <div className="absolute inset-0 bg-amber-100 rounded-full animate-ping opacity-50" />
+                <div className="relative w-20 h-20 bg-gradient-to-br from-amber-50 to-amber-100 rounded-full border-2 border-amber-200 flex items-center justify-center">
+                  <Loader2 size={40} className="animate-spin text-amber-600" />
+                </div>
+                <Shield size={20} className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-amber-600" />
               </div>
               <div>
-                <h3 className="text-sm font-medium text-gray-900">Processing Withdrawal</h3>
-                <p className="text-xs text-gray-400 mt-1">
+                <h3 className="text-base font-black text-slate-900">Processing Withdrawal</h3>
+                <p className="text-xs text-slate-500 mt-2 max-w-xs mx-auto">
                   {method === 'mpesa' 
-                    ? 'Please wait while we process your M-PESA withdrawal' 
+                    ? 'Please wait while we process your M-PESA withdrawal through our secure gateway' 
                     : 'Please wait while we process your crypto withdrawal'}
                 </p>
               </div>
               {trackingId && (
-                <div className="bg-gray-50 p-2 rounded-lg">
-                  <p className="text-[10px] text-gray-400">Tracking ID: {trackingId}</p>
+                <div className="bg-slate-50 p-3 rounded-xl border-2 border-slate-200">
+                  <p className="text-[10px] font-mono text-slate-400">Tracking ID: {trackingId}</p>
                 </div>
               )}
-              <div className="flex items-center justify-center gap-1">
-                <div className="w-1 h-1 bg-rose-400 rounded-full animate-pulse"></div>
-                <div className="w-1 h-1 bg-rose-400 rounded-full animate-pulse delay-75"></div>
-                <div className="w-1 h-1 bg-rose-400 rounded-full animate-pulse delay-150"></div>
+              <div className="flex items-center justify-center gap-1.5">
+                <div className="w-1.5 h-1.5 bg-amber-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                <div className="w-1.5 h-1.5 bg-amber-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                <div className="w-1.5 h-1.5 bg-amber-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
               </div>
             </div>
           )}
 
           {step === 'success' && (
-            <div className="py-8 text-center space-y-4">
-              <div className="w-16 h-16 bg-emerald-50 rounded-full flex items-center justify-center mx-auto">
-                <CheckCircle size={28} className="text-emerald-600" />
+            <div className="py-10 text-center space-y-4">
+              <div className="relative w-20 h-20 mx-auto">
+                <div className="absolute inset-0 bg-emerald-100 rounded-full animate-ping opacity-50" />
+                <div className="relative w-20 h-20 bg-emerald-50 rounded-full border-2 border-emerald-200 flex items-center justify-center">
+                  <CheckCircle size={40} className="text-emerald-600" />
+                </div>
               </div>
               <div>
-                <h3 className="text-sm font-medium text-gray-900">Withdrawal Initiated</h3>
-                <p className="text-xs text-gray-400 mt-1">
+                <h3 className="text-base font-black text-slate-900">Withdrawal Complete</h3>
+                <p className="text-xs text-slate-500 mt-2">
                   {method === 'mpesa' 
-                    ? 'Funds will be sent to your M-PESA shortly' 
-                    : 'Funds will be sent to your wallet shortly'}
+                    ? 'Funds have been sent to your M-PESA' 
+                    : 'Funds have been sent to your wallet'}
                 </p>
               </div>
               
               {(withdrawalId || trackingId) && (
-                <div className="bg-gray-50 p-3 rounded-lg space-y-2">
+                <div className="bg-slate-50 p-4 rounded-xl border-2 border-slate-200 space-y-2">
                   {withdrawalId && (
                     <div>
-                      <p className="text-[10px] text-gray-500 mb-1">Transaction ID</p>
-                      <p className="text-xs font-mono text-gray-700 break-all">{withdrawalId}</p>
+                      <p className="text-[10px] font-bold text-slate-500 mb-1">Transaction ID</p>
+                      <p className="text-xs font-mono font-bold text-slate-700 break-all bg-white p-2 rounded-lg border border-slate-200">{withdrawalId}</p>
                     </div>
                   )}
                   {trackingId && trackingId !== withdrawalId && (
                     <div>
-                      <p className="text-[10px] text-gray-500 mb-1">Tracking ID</p>
-                      <p className="text-xs font-mono text-gray-700 break-all">{trackingId}</p>
+                      <p className="text-[10px] font-bold text-slate-500 mb-1">Tracking ID</p>
+                      <p className="text-xs font-mono font-bold text-slate-700 break-all bg-white p-2 rounded-lg border border-slate-200">{trackingId}</p>
                     </div>
                   )}
                 </div>
@@ -550,38 +572,59 @@ export default function WithdrawalModal({ isOpen, onClose, balances, walletAddre
 
               <button 
                 onClick={handleClose} 
-                className="w-full py-3 bg-rose-500 text-white rounded-lg text-sm font-medium hover:bg-rose-600 transition-all"
+                className="w-full py-4 bg-gradient-to-r from-amber-600 to-amber-500 text-white rounded-xl text-sm font-bold hover:from-amber-700 hover:to-amber-600 transition-all shadow-lg"
               >
                 Close
               </button>
+
+              <div className="flex items-center justify-center gap-1 text-[9px] text-slate-300">
+                <BadgeCheck size={10} className="text-emerald-500" />
+                <span>Verified by secure gateway</span>
+              </div>
             </div>
           )}
 
           {step === 'failed' && (
-            <div className="py-8 text-center space-y-4">
-              <div className="w-16 h-16 bg-rose-50 rounded-full flex items-center justify-center mx-auto">
-                <AlertCircle size={28} className="text-rose-600" />
+            <div className="py-10 text-center space-y-4">
+              <div className="w-20 h-20 bg-rose-50 rounded-full border-2 border-rose-200 flex items-center justify-center mx-auto">
+                <AlertCircle size={40} className="text-rose-600" />
               </div>
               <div>
-                <h3 className="text-sm font-medium text-gray-900">Withdrawal Failed</h3>
-                <p className="text-xs text-gray-400 mt-1">{error || 'Please try again or contact support'}</p>
+                <h3 className="text-base font-black text-slate-900">Transaction Failed</h3>
+                <p className="text-xs text-slate-500 mt-2">{error || 'Please try again or contact support'}</p>
               </div>
-              <div className="flex gap-2">
+              <div className="flex gap-3">
                 <button 
                   onClick={() => setStep('form')} 
-                  className="flex-1 py-3 bg-gray-100 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-200 transition-all"
+                  className="flex-1 py-4 bg-white border-2 border-slate-200 text-slate-700 rounded-xl text-sm font-bold hover:bg-slate-50 transition-all"
                 >
                   Try Again
                 </button>
                 <button 
                   onClick={handleClose} 
-                  className="flex-1 py-3 bg-rose-500 text-white rounded-lg text-sm font-medium hover:bg-rose-600 transition-all"
+                  className="flex-1 py-4 bg-gradient-to-r from-amber-600 to-amber-500 text-white rounded-xl text-sm font-bold hover:from-amber-700 hover:to-amber-600 transition-all shadow-lg"
                 >
                   Close
                 </button>
               </div>
             </div>
           )}
+        </div>
+
+        {/* Footer */}
+        <div className="px-6 py-3 border-t border-slate-100 bg-slate-50/50 flex items-center justify-between">
+          <div className="flex items-center gap-2 text-[9px] text-slate-400">
+            <Shield size={10} />
+            <span>256-bit SSL</span>
+          </div>
+          <div className="flex items-center gap-2 text-[9px] text-slate-400">
+            <Clock size={10} />
+            <span>Instant processing</span>
+          </div>
+          <div className="flex items-center gap-2 text-[9px] text-slate-400">
+            <Sparkles size={10} className="text-amber-500" />
+            <span>No hidden fees</span>
+          </div>
         </div>
       </div>
     </div>

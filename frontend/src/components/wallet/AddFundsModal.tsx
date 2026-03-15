@@ -3,7 +3,9 @@
 import React, { useState, useEffect } from 'react';
 import { 
   X, CreditCard, Smartphone, Loader2, 
-  CheckCircle, AlertCircle, ArrowLeft, Lock
+  CheckCircle, AlertCircle, ArrowLeft, Lock,
+  Shield, Zap, Clock, Gem, BadgeCheck,
+  Wallet, Sparkles
 } from 'lucide-react';
 
 interface AddFundsModalProps {
@@ -19,7 +21,7 @@ export default function AddFundsModal({ isOpen, onClose, onSuccess }: AddFundsMo
   const [amount, setAmount] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [invoiceId, setInvoiceId] = useState(''); // Using only invoiceId, removed transactionId
+  const [invoiceId, setInvoiceId] = useState('');
   const [pollingInterval, setPollingInterval] = useState<NodeJS.Timeout | null>(null);
   
   // Fee logic
@@ -29,6 +31,20 @@ export default function AddFundsModal({ isOpen, onClose, onSuccess }: AddFundsMo
   const totalCharge = Number(amount) > 0 ? Number(amount) + currentFee : 0;
 
   const [mpesaDetails, setMpesaDetails] = useState({ phone: '' });
+
+  // Professional Logo Component
+  const GeonLogo = () => (
+    <div className="relative flex items-center justify-center">
+      <div className="relative w-8 h-8">
+        <div className="absolute inset-0 bg-gradient-to-br from-slate-900 to-slate-800 rounded-xl rotate-6 shadow-lg" />
+        <div className="absolute inset-[2px] bg-gradient-to-br from-slate-800 to-slate-900 rounded-lg rotate-6" />
+        <div className="absolute inset-0 flex items-center justify-center">
+          <Gem size={12} className="text-amber-400" strokeWidth={1.5} />
+        </div>
+        <div className="absolute -top-1 -right-1 w-1.5 h-1.5 bg-emerald-500 rounded-full ring-2 ring-white animate-pulse" />
+      </div>
+    </div>
+  );
 
   // Cleanup polling on unmount
   useEffect(() => {
@@ -83,10 +99,8 @@ export default function AddFundsModal({ isOpen, onClose, onSuccess }: AddFundsMo
 
   // Format phone number for API
   const formatPhoneNumber = (phone: string): string => {
-    // Remove all non-numeric characters
     let cleaned = phone.replace(/\D/g, '');
     
-    // Convert to 254 format
     if (cleaned.startsWith('0')) {
       cleaned = '254' + cleaned.substring(1);
     } else if (cleaned.startsWith('7')) {
@@ -100,7 +114,7 @@ export default function AddFundsModal({ isOpen, onClose, onSuccess }: AddFundsMo
     return cleaned;
   };
 
-  // Check transaction status with Intasend
+  // Check transaction status with payment gateway
   const checkTransactionStatus = async (invoiceId: string) => {
     try {
       const token = getAuthToken();
@@ -124,7 +138,7 @@ export default function AddFundsModal({ isOpen, onClose, onSuccess }: AddFundsMo
   // Polling for transaction status
   const startPolling = (invoiceId: string) => {
     let attempts = 0;
-    const maxAttempts = 30; // 90 seconds max (3s * 30)
+    const maxAttempts = 30;
     
     const interval = setInterval(async () => {
       attempts++;
@@ -133,13 +147,11 @@ export default function AddFundsModal({ isOpen, onClose, onSuccess }: AddFundsMo
         const status = await checkTransactionStatus(invoiceId);
         
         if (status) {
-          // Check Intasend payment status
           if (status.payment_status === 'COMPLETE' || status.status === 'completed' || status.complete === true) {
             clearInterval(interval);
             setStep('success');
             setPollingInterval(null);
             
-            // Notify parent after success
             setTimeout(() => {
               onSuccess();
               handleClose();
@@ -153,7 +165,6 @@ export default function AddFundsModal({ isOpen, onClose, onSuccess }: AddFundsMo
           }
         }
         
-        // Timeout after max attempts
         if (attempts >= maxAttempts) {
           clearInterval(interval);
           setError('Transaction timeout. Please check your wallet balance.');
@@ -164,7 +175,7 @@ export default function AddFundsModal({ isOpen, onClose, onSuccess }: AddFundsMo
       } catch (err) {
         console.error('Polling error:', err);
       }
-    }, 3000); // Poll every 3 seconds
+    }, 3000);
 
     setPollingInterval(interval);
   };
@@ -189,13 +200,9 @@ export default function AddFundsModal({ isOpen, onClose, onSuccess }: AddFundsMo
         throw new Error('Authentication required');
       }
 
-      // Format phone number
       const formattedPhone = formatPhoneNumber(mpesaDetails.phone);
-
-      // Generate a unique reference
       const reference = `DEP_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
 
-      // Call Intasend STK Push endpoint
       const endpoint = `${API_URL}/api/v1/wallet/deposit/mpesa`;
 
       const bodyData = { 
@@ -219,7 +226,6 @@ export default function AddFundsModal({ isOpen, onClose, onSuccess }: AddFundsMo
         throw new Error(result.detail || result.message || "Payment initiation failed");
       }
 
-      // Store transaction identifier - using only invoiceId
       if (result.invoice_id) {
         setInvoiceId(result.invoice_id);
       } else if (result.tracking_id) {
@@ -228,14 +234,11 @@ export default function AddFundsModal({ isOpen, onClose, onSuccess }: AddFundsMo
         setInvoiceId(result.tx_id);
       }
 
-      // Move to processing step
       setStep('processing');
 
-      // Start polling for status (if we have an ID)
       if (result.invoice_id || result.tracking_id || result.tx_id) {
         startPolling(result.invoice_id || result.tracking_id || result.tx_id);
       } else {
-        // If no ID, just show processing and let user check manually
         setTimeout(() => {
           setStep('success');
           setTimeout(() => {
@@ -263,89 +266,104 @@ export default function AddFundsModal({ isOpen, onClose, onSuccess }: AddFundsMo
 
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-      <div className="bg-white rounded-2xl max-w-md w-full shadow-xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+      <div className="bg-white rounded-3xl max-w-md w-full shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
         
+        {/* Top Gradient Bar */}
+        <div className="h-2 bg-gradient-to-r from-amber-500 to-amber-400" />
+
         {/* Header */}
-        <div className="p-5 border-b border-gray-100 flex items-center justify-between bg-white">
-          <div className="flex items-center gap-2">
+        <div className="p-5 border-b border-slate-100 flex items-center justify-between bg-white">
+          <div className="flex items-center gap-3">
             {step !== 'select' && step !== 'success' && (
               <button 
                 onClick={handleBack} 
-                className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors"
+                className="p-2 hover:bg-slate-100 rounded-xl transition-colors"
                 disabled={step === 'processing'}
               >
-                <ArrowLeft size={18} className="text-gray-600" />
+                <ArrowLeft size={18} className="text-slate-600" />
               </button>
             )}
-            <div>
-              <h2 className="text-base font-semibold text-gray-900">
-                {step === 'select' && 'Add Funds'}
-                {step === 'form' && 'M-PESA Deposit'}
-                {step === 'processing' && 'Processing Payment'}
-                {step === 'success' && 'Payment Successful'}
-                {step === 'failed' && 'Payment Failed'}
-              </h2>
-              <div className="flex items-center gap-1 mt-0.5">
-                <Lock size={10} className="text-emerald-600" />
-                <span className="text-[10px] text-gray-400">Secured by PesaPal</span>
+            <div className="flex items-center gap-2">
+              <GeonLogo />
+              <div>
+                <h2 className="text-base font-black text-slate-900">
+                  {step === 'select' && 'Add Funds'}
+                  {step === 'form' && 'M-PESA Deposit'}
+                  {step === 'processing' && 'Processing Payment'}
+                  {step === 'success' && 'Payment Successful'}
+                  {step === 'failed' && 'Payment Failed'}
+                </h2>
+                <div className="flex items-center gap-1 mt-0.5">
+                  <Lock size={10} className="text-emerald-600" />
+                  <span className="text-[9px] font-mono text-slate-400">Secured Payment Gateway</span>
+                  <BadgeCheck size={10} className="text-emerald-500" />
+                </div>
               </div>
             </div>
           </div>
           <button 
             onClick={handleClose} 
-            className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors"
+            className="p-2 hover:bg-slate-100 rounded-xl transition-colors"
             disabled={step === 'processing'}
           >
-            <X size={18} className="text-gray-400" />
+            <X size={18} className="text-slate-400" />
           </button>
         </div>
 
-        <div className="p-5">
+        <div className="p-6">
           {step === 'select' && (
             <div className="space-y-3">
               {/* M-PESA - Active */}
               <button 
                 onClick={() => setStep('form')} 
-                className="w-full p-4 border border-gray-200 rounded-xl hover:border-emerald-300 hover:bg-emerald-50/30 flex items-center gap-3 transition-all group"
+                className="w-full p-5 border-2 border-emerald-200 rounded-xl hover:border-emerald-400 hover:bg-emerald-50/30 flex items-center gap-4 transition-all group"
               >
-                <div className="w-10 h-10 bg-emerald-100 rounded-lg flex items-center justify-center group-hover:scale-105 transition-transform">
-                  <Smartphone className="text-emerald-600" size={20} />
+                <div className="w-12 h-12 bg-emerald-100 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform group-hover:bg-emerald-200">
+                  <Smartphone className="text-emerald-600" size={22} />
                 </div>
                 <div className="flex-1 text-left">
-                  <p className="text-sm font-medium text-gray-900">M-PESA</p>
-                  <p className="text-xs text-gray-400">Instant STK Push via PesaPal</p>
+                  <p className="text-sm font-black text-slate-900">M-PESA</p>
+                  <p className="text-xs text-slate-400 mt-0.5">Instant STK Push via secure gateway</p>
                 </div>
-                <span className="text-[10px] px-2 py-1 bg-emerald-100 text-emerald-700 rounded-full font-medium">Active</span>
+                <span className="text-[10px] px-2 py-1 bg-emerald-100 text-emerald-700 rounded-full font-bold border border-emerald-200">Active</span>
               </button>
 
               {/* Card - Temporarily Unavailable */}
-              <div className="w-full p-4 border border-gray-200 rounded-xl bg-gray-50 flex items-center gap-3 opacity-60 cursor-not-allowed">
-                <div className="w-10 h-10 bg-gray-200 rounded-lg flex items-center justify-center">
-                  <CreditCard className="text-gray-400" size={20} />
+              <div className="w-full p-5 border-2 border-slate-200 rounded-xl bg-slate-50 flex items-center gap-4 opacity-60 cursor-not-allowed">
+                <div className="w-12 h-12 bg-slate-200 rounded-xl flex items-center justify-center">
+                  <CreditCard className="text-slate-400" size={22} />
                 </div>
                 <div className="flex-1 text-left">
-                  <p className="text-sm font-medium text-gray-500">Card Payments</p>
-                  <p className="text-xs text-gray-400">Visa, Mastercard, Amex</p>
+                  <p className="text-sm font-black text-slate-500">Card Payments</p>
+                  <p className="text-xs text-slate-400">Visa, Mastercard, Amex</p>
                 </div>
-                <span className="text-[10px] px-2 py-1 bg-amber-100 text-amber-700 rounded-full font-medium">Coming Soon</span>
+                <span className="text-[10px] px-2 py-1 bg-amber-100 text-amber-700 rounded-full font-bold border border-amber-200">Coming Soon</span>
               </div>
 
               {/* Info Notice */}
-              <div className="mt-4 p-3 bg-blue-50 border border-blue-100 rounded-lg">
-                <p className="text-xs text-blue-800 flex items-center gap-2">
-                  <Smartphone size={14} className="text-blue-600" />
-                  You'll receive an STK push on your phone to complete the payment.
-                </p>
+              <div className="mt-4 p-4 bg-amber-50 border border-amber-200 rounded-xl">
+                <div className="flex items-start gap-3">
+                  <div className="w-6 h-6 bg-amber-100 rounded-lg flex items-center justify-center shrink-0">
+                    <Zap size={14} className="text-amber-600" />
+                  </div>
+                  <p className="text-xs text-amber-800 leading-relaxed">
+                    You'll receive an STK push on your phone to complete the payment. 
+                    <span className="block text-amber-600/70 text-[10px] mt-1">Transactions are processed instantly via our secure gateway.</span>
+                  </p>
+                </div>
               </div>
             </div>
           )}
 
           {step === 'form' && (
-            <form onSubmit={handleSubmit} className="space-y-4">
+            <form onSubmit={handleSubmit} className="space-y-5">
               <div className="space-y-1.5">
-                <label className="text-xs text-gray-500 ml-1">Amount (KES)</label>
+                <label className="text-xs font-bold text-slate-700 ml-1 flex items-center gap-1.5">
+                  <Wallet size={12} className="text-amber-500" />
+                  Amount (KES)
+                </label>
                 <div className="relative">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">KES</span>
+                  <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 text-sm font-bold">KES</span>
                   <input
                     type="number" 
                     value={amount} 
@@ -355,121 +373,156 @@ export default function AddFundsModal({ isOpen, onClose, onSuccess }: AddFundsMo
                     required
                     min="10"
                     step="10"
-                    className="w-full pl-14 pr-3 py-3 bg-gray-50 border border-gray-200 rounded-lg text-gray-900 outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 transition-all"
+                    className="w-full pl-16 pr-4 py-4 bg-white border-2 border-slate-200 rounded-xl text-slate-900 outline-none focus:border-amber-500 focus:ring-4 focus:ring-amber-500/10 transition-all font-bold text-lg"
                   />
                 </div>
               </div>
 
               <div className="space-y-1.5">
-                <label className="text-xs text-gray-500 ml-1">M-PESA Phone Number</label>
+                <label className="text-xs font-bold text-slate-700 ml-1 flex items-center gap-1.5">
+                  <Smartphone size={12} className="text-amber-500" />
+                  M-PESA Phone Number
+                </label>
                 <input
                   type="tel" 
                   placeholder="0712 345 678" 
                   value={mpesaDetails.phone}
                   onChange={(e) => setMpesaDetails({ phone: e.target.value })}
-                  className="w-full px-3 py-3 bg-gray-50 border border-gray-200 rounded-lg text-gray-900 outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 transition-all"
+                  className="w-full px-4 py-4 bg-white border-2 border-slate-200 rounded-xl text-slate-900 outline-none focus:border-amber-500 focus:ring-4 focus:ring-amber-500/10 transition-all"
                   required
                 />
-                <p className="text-[10px] text-gray-400 mt-1">Enter the M-PESA registered phone number</p>
+                <p className="text-[10px] text-slate-400 mt-1 font-mono">Enter the M-PESA registered phone number</p>
               </div>
 
-              <div className="p-3 bg-gray-50 rounded-lg border border-gray-100">
-                <div className="flex justify-between text-xs">
-                  <span className="text-gray-500">Processing Fee</span>
-                  <span className="text-gray-900 font-medium">
+              <div className="p-4 bg-slate-50 rounded-xl border border-slate-200">
+                <div className="flex justify-between text-xs mb-2">
+                  <span className="text-slate-500 font-medium">Processing Fee</span>
+                  <span className="text-slate-900 font-bold">
                     {isFirstDeposit ? 'Free' : `KES ${STANDARD_FEE}`}
                   </span>
                 </div>
-                <div className="flex justify-between text-sm font-medium pt-2 mt-2 border-t border-gray-200">
-                  <span className="text-gray-700">Total Charge</span>
-                  <span className="text-emerald-600">KES {totalCharge.toLocaleString()}</span>
+                <div className="flex justify-between text-sm font-black pt-3 mt-2 border-t border-slate-200">
+                  <span className="text-slate-700">Total Charge</span>
+                  <span className="text-amber-600">KES {totalCharge.toLocaleString()}</span>
                 </div>
               </div>
 
               {error && (
-                <div className="p-3 bg-rose-50 border border-rose-100 rounded-lg flex items-center gap-2 text-rose-600 text-xs">
-                  <AlertCircle size={14} />
-                  <span>{error}</span>
+                <div className="p-4 bg-rose-50 border border-rose-200 rounded-xl flex items-center gap-3 text-rose-600 text-xs">
+                  <AlertCircle size={16} className="shrink-0" />
+                  <span className="font-medium">{error}</span>
                 </div>
               )}
 
               <button
                 type="submit" 
                 disabled={loading}
-                className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-sm font-medium transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+                className="w-full py-4 bg-gradient-to-r from-amber-600 to-amber-500 hover:from-amber-700 hover:to-amber-600 text-white rounded-xl text-sm font-bold transition-all disabled:opacity-50 flex items-center justify-center gap-2 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5"
               >
                 {loading ? (
-                  <Loader2 size={16} className="animate-spin" />
+                  <Loader2 size={18} className="animate-spin" />
                 ) : (
-                  'Pay with M-PESA'
+                  <>
+                    <Smartphone size={18} />
+                    Pay with M-PESA
+                  </>
                 )}
               </button>
 
-              <p className="text-[10px] text-center text-gray-400">
+              <p className="text-[9px] text-center text-slate-400 font-mono">
                 By continuing, you agree to our Terms of Service
               </p>
             </form>
           )}
 
           {step === 'processing' && (
-            <div className="py-8 text-center">
-              <div className="relative w-16 h-16 mx-auto mb-4">
-                <Loader2 size={64} className="animate-spin text-emerald-600 opacity-20" />
-                <Smartphone size={24} className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-emerald-600" />
+            <div className="py-10 text-center">
+              <div className="relative w-20 h-20 mx-auto mb-5">
+                <div className="absolute inset-0 bg-amber-100 rounded-full animate-ping opacity-50" />
+                <div className="relative w-20 h-20 bg-gradient-to-br from-amber-50 to-amber-100 rounded-full border-2 border-amber-200 flex items-center justify-center">
+                  <Loader2 size={40} className="animate-spin text-amber-600" />
+                </div>
+                <Smartphone size={20} className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-amber-600" />
               </div>
-              <p className="text-sm font-medium text-gray-900 mb-1">Awaiting M-PESA Confirmation</p>
-              <p className="text-xs text-gray-400 px-4 mb-3">
+              <p className="text-base font-black text-slate-900 mb-2">Awaiting M-PESA Confirmation</p>
+              <p className="text-xs text-slate-500 px-6 mb-4 leading-relaxed">
                 Please check your phone and enter your M-PESA PIN to complete the transaction.
               </p>
               {invoiceId && (
-                <p className="text-[10px] text-gray-300">
-                  Reference: {invoiceId.substring(0, 8)}...
+                <p className="text-[10px] font-mono text-slate-400 bg-slate-50 py-2 px-3 rounded-full inline-block">
+                  Ref: {invoiceId.substring(0, 8)}...
                 </p>
               )}
-              <div className="mt-4 flex items-center justify-center gap-1">
-                <div className="w-1 h-1 bg-emerald-400 rounded-full animate-pulse"></div>
-                <div className="w-1 h-1 bg-emerald-400 rounded-full animate-pulse delay-75"></div>
-                <div className="w-1 h-1 bg-emerald-400 rounded-full animate-pulse delay-150"></div>
+              <div className="mt-6 flex items-center justify-center gap-1.5">
+                <div className="w-1.5 h-1.5 bg-amber-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                <div className="w-1.5 h-1.5 bg-amber-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                <div className="w-1.5 h-1.5 bg-amber-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
               </div>
+              <p className="text-[9px] text-slate-300 mt-4">Processing via secure gateway</p>
             </div>
           )}
 
           {step === 'success' && (
-            <div className="py-8 text-center">
-              <div className="w-16 h-16 bg-emerald-50 rounded-full flex items-center justify-center mx-auto mb-4">
-                <CheckCircle size={28} className="text-emerald-600" />
+            <div className="py-10 text-center">
+              <div className="relative w-20 h-20 mx-auto mb-5">
+                <div className="absolute inset-0 bg-emerald-100 rounded-full animate-ping opacity-50" />
+                <div className="relative w-20 h-20 bg-emerald-50 rounded-full border-2 border-emerald-200 flex items-center justify-center">
+                  <CheckCircle size={40} className="text-emerald-600" />
+                </div>
               </div>
-              <p className="text-sm font-medium text-gray-900 mb-1">Payment Successful!</p>
-              <p className="text-xs text-gray-400 mb-2">KES {Number(amount).toLocaleString()} added to your wallet</p>
+              <p className="text-base font-black text-slate-900 mb-2">Payment Successful!</p>
+              <p className="text-sm text-slate-500 mb-3">KES {Number(amount).toLocaleString()} added to your wallet</p>
               {invoiceId && (
-                <p className="text-[10px] text-gray-300">Transaction ID: {invoiceId}</p>
+                <p className="text-[10px] font-mono text-slate-400 bg-slate-50 py-2 px-3 rounded-full inline-block">
+                  Transaction ID: {invoiceId}
+                </p>
               )}
+              <div className="mt-6 flex items-center justify-center gap-1 text-[9px] text-slate-300">
+                <BadgeCheck size={10} className="text-emerald-500" />
+                <span>Verified by secure gateway</span>
+              </div>
             </div>
           )}
 
           {step === 'failed' && (
-            <div className="py-8 text-center">
-              <div className="w-16 h-16 bg-rose-50 rounded-full flex items-center justify-center mx-auto mb-4">
-                <AlertCircle size={28} className="text-rose-600" />
+            <div className="py-10 text-center">
+              <div className="w-20 h-20 bg-rose-50 rounded-full border-2 border-rose-200 flex items-center justify-center mx-auto mb-5">
+                <AlertCircle size={40} className="text-rose-600" />
               </div>
-              <p className="text-sm font-medium text-gray-900 mb-1">Transaction Failed</p>
-              <p className="text-xs text-gray-400 mb-4">{error || 'Please try again'}</p>
-              <div className="flex gap-2 justify-center">
+              <p className="text-base font-black text-slate-900 mb-2">Transaction Failed</p>
+              <p className="text-xs text-slate-500 mb-6 px-4">{error || 'Please try again or use another payment method'}</p>
+              <div className="flex gap-3 justify-center">
                 <button 
                   onClick={handleRetry} 
-                  className="text-xs px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors"
+                  className="text-xs px-5 py-3 bg-amber-600 text-white rounded-xl font-bold hover:bg-amber-700 transition-colors shadow-md"
                 >
                   Try Again
                 </button>
                 <button 
                   onClick={handleClose} 
-                  className="text-xs px-4 py-2 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+                  className="text-xs px-5 py-3 border-2 border-slate-200 rounded-xl font-bold hover:bg-slate-50 transition-colors"
                 >
                   Close
                 </button>
               </div>
             </div>
           )}
+        </div>
+
+        {/* Footer */}
+        <div className="px-6 py-3 border-t border-slate-100 bg-slate-50/50 flex items-center justify-between">
+          <div className="flex items-center gap-2 text-[9px] text-slate-400">
+            <Shield size={10} />
+            <span>256-bit SSL</span>
+          </div>
+          <div className="flex items-center gap-2 text-[9px] text-slate-400">
+            <Clock size={10} />
+            <span>Instant settlement</span>
+          </div>
+          <div className="flex items-center gap-2 text-[9px] text-slate-400">
+            <Sparkles size={10} className="text-amber-500" />
+            <span>No hidden fees</span>
+          </div>
         </div>
       </div>
     </div>
