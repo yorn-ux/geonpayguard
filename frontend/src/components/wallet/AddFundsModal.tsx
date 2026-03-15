@@ -233,14 +233,16 @@ export default function AddFundsModal({ isOpen, onClose, onSuccess }: AddFundsMo
         setInvoiceId(result.tracking_id);
       } else if (result.order_tracking_id) {
         setInvoiceId(result.order_tracking_id);
+      } else if (result.checkout_request_id) {
+        setInvoiceId(result.checkout_request_id);
       } else if (result.tx_id) {
         setInvoiceId(result.tx_id);
       }
 
       setStep('processing');
 
-      if (result.invoice_id || result.tracking_id || result.order_tracking_id || result.tx_id) {
-        startPolling(result.invoice_id || result.tracking_id || result.order_tracking_id || result.tx_id);
+      if (result.invoice_id || result.tracking_id || result.order_tracking_id || result.checkout_request_id || result.tx_id) {
+        startPolling(result.invoice_id || result.tracking_id || result.order_tracking_id || result.checkout_request_id || result.tx_id);
       } else {
         setTimeout(() => {
           setStep('success');

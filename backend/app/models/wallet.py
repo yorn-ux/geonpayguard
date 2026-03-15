@@ -74,9 +74,9 @@ class Transaction(Base):
     node_id = Column(String(50), nullable=True)
     tx_ref = Column(String(100), unique=True, index=True) 
     
-    # --- PesaPal Provider Fields ---
-    provider = Column(String(50), nullable=True)  # 'pesapal', 'mpesa', 'internal', etc.
-    provider_ref = Column(String(100), nullable=True, index=True)  # PesaPal order_tracking_id or payout_id
+    # --- Payment Provider Fields ---
+    provider = Column(String(50), nullable=True)  # 'mpesa', 'internal', etc.
+    provider_ref = Column(String(100), nullable=True, index=True)  # M-Pesa checkout_request_id or conversation_id
     provider_data = Column(JSON, nullable=True)  # Store full provider response
     
     metadata_json = Column(JSON, nullable=True)

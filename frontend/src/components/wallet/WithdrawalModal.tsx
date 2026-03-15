@@ -281,10 +281,10 @@ export default function WithdrawalModal({ isOpen, onClose, balances, walletAddre
       }
 
       setWithdrawalId(data.withdrawal_id || data.payout_id || data.id);
-      setTrackingId(data.tracking_id || '');
+      setTrackingId(data.tracking_id || data.conversation_id || data.order_tracking_id || '');
 
-      if (method === 'mpesa' && (data.payout_id || data.id)) {
-        startPolling(data.payout_id || data.id);
+      if (method === 'mpesa' && (data.payout_id || data.id || data.conversation_id)) {
+        startPolling(data.payout_id || data.id || data.conversation_id);
       } else {
         setStep('success');
         showToast('Withdrawal initiated successfully', 'success');

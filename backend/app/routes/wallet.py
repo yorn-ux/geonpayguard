@@ -16,10 +16,10 @@ from ..models.user import User
 from .auth import get_current_user
 from ..services.email import send_deposit_notification, send_withdrawal_notification
 
-# PesaPal API Configuration - FIXED
-PESAPAL_BASE_URL = os.getenv("PESAPAL_BASE_URL", "https://cybqa.pesapal.com/pesapalv3")  # Fixed: added /pesapalv3
-PESAPAL_CONSUMER_KEY = os.getenv("PESAPAL_CONSUMER_KEY", "")
-PESAPAL_CONSUMER_SECRET = os.getenv("PESAPAL_CONSUMER_SECRET", "")
+# M-Pesa API Configuration
+MPESA_ENVIRONMENT = os.getenv("MPESA_ENVIRONMENT", "sandbox")
+MPESA_SHORTCODE = os.getenv("MPESA_SHORTCODE", "")
+MPESA_CALLBACK_URL = os.getenv("MPESA_CALLBACK_URL", "")
 
 router = APIRouter(tags=["Unified Wallet"])
 
@@ -42,8 +42,8 @@ def calculate_withdrawal_fee(amount: Decimal, method: str, history_count: int, t
     min_fee = Decimal("45") if method == "mpesa" else Decimal("5")  # Min KES 45 for M-PESA
     return max(fee, min_fee)
 
-def format_phone_for_pesapal(phone: str) -> str:
-    """Format phone number for PesaPal (254XXXXXXXXX format)"""
+def format_phone_for_mpesa(phone: str) -> str:
+    """Format phone number for M-Pesa (254XXXXXXXXX format)"""
     # Remove all non-numeric characters
     cleaned = ''.join(filter(str.isdigit, phone))
     
@@ -59,20 +59,20 @@ def format_phone_for_pesapal(phone: str) -> str:
     
     return cleaned
 
-def generate_pesapal_headers():
-    """Generate headers for PesaPal API requests"""
+def generate_mpesa_headers():
+    """Generate headers for M-Pesa API requests"""
     return {
         "Content-Type": "application/json"
     }
 
-async def check_pesapal_transaction_status(order_tracking_id: str) -> dict:
-    """Check transaction status with PesaPal"""
-    from ..services.pesapal import check_pesapal_status
+async def check_mpesa_transaction_status(checkout_request_id: str) -> dict:
+    """Check transaction status with M-Pesa"""
+    from ..services.mpesa import check_stk_push_status
     try:
-        result = await check_pesapal_status(order_tracking_id)
+        result = await check_stk_push_status(checkout_request_id)
         return result
     except Exception as e:
-        print(f"PesaPal status check error: {e}")
+        print(f"M-Pesa status check error: {e}")
         return {"status": "error"}
 
 # --- 2. QUERY ROUTES ---
@@ -173,10 +173,10 @@ async def get_transaction_status(
     if not transaction:
         raise HTTPException(404, "Transaction not found")
     
-    # If it's a PesaPal transaction and still processing, check with provider
-    if transaction.provider == "pesapal" and transaction.status == TransactionStatus.PROCESSING:
+    # If it's an M-Pesa transaction and still processing, check with provider
+    if transaction.provider == "mpesa" and transaction.status == TransactionStatus.PROCESSING:
         if transaction.provider_ref:
-            status_data = await check_pesapal_transaction_status(transaction.provider_ref)
+            status_data = await check_mpesa_transaction_status(transaction.provider_ref)
             
             # Update status if changed
             if status_data.get("payment_status") == "COMPLETE" or status_data.get("complete") == True:
@@ -198,7 +198,7 @@ async def get_transaction_status(
         "failure_reason": transaction.failure_reason
     }
 
-# --- 3. DEPOSIT ROUTES (PesaPal STK Push) ---
+# --- 3. DEPOSIT ROUTES (M-Pesa STK Push) ---
 
 @router.post("/deposit/mpesa")
 async def deposit_mpesa(
@@ -237,7 +237,7 @@ async def deposit_mpesa(
         net_amount=amount,
         currency="KES",
         tx_ref=reference,
-        provider="pesapal",
+        provider="mpesa",
         provider_ref=None,
         failure_reason=None,
         created_at=datetime.utcnow(),
@@ -252,27 +252,27 @@ async def deposit_mpesa(
         raise HTTPException(500, f"Failed to create transaction: {str(e)}")
     
     try:
-        # Format phone for PesaPal
-        formatted_phone = format_phone_for_pesapal(phone)
+        # Format phone for M-Pesa
+        formatted_phone = format_phone_for_mpesa(phone)
         
-        # Call PesaPal STK Push
-        from ..services.pesapal import submit_pesapal_order
-        pesapal_result = await submit_pesapal_order(
+        # Call M-Pesa STK Push
+        from ..services.mpesa import stk_push_request
+        mpesa_result = await stk_push_request(
             phone=formatted_phone,
             amount=float(amount),
             reference=reference,
             description=f"Wallet Deposit - {reference}"
         )
         
-        # Update transaction with PesaPal reference
-        tx.provider_ref = pesapal_result.get("order_tracking_id")
+        # Update transaction with M-Pesa reference
+        tx.provider_ref = mpesa_result.get("checkout_request_id")
         tx.beneficiary_phone = formatted_phone
         db.commit()
         
         return {
             "status": "pending",
             "message": "STK Push sent to phone",
-            "order_tracking_id": tx.provider_ref,
+            "checkout_request_id": tx.provider_ref,
             "tx_id": tx_id,
             "tx_ref": reference
         }
@@ -294,8 +294,8 @@ async def deposit_mpesa(
         raise HTTPException(500, f"Deposit failed: {str(e)}")
 
 @router.post("/deposit/mpesa/webhook")
-async def pesapal_webhook(request: Request, db: Session = Depends(get_db)):
-    """Handle PesaPal webhook for payment notifications"""
+async def mpesa_webhook(request: Request, db: Session = Depends(get_db)):
+    """Handle M-Pesa webhook for payment notifications"""
     try:
         payload = await request.json()
     except:
@@ -352,7 +352,7 @@ async def pesapal_webhook(request: Request, db: Session = Depends(get_db)):
     
     return {"status": "received"}
 
-# --- 4. WITHDRAWAL ROUTES (PesaPal B2C Payouts) ---
+# --- 4. WITHDRAWAL ROUTES (M-Pesa B2C Payouts) ---
 
 @router.post("/withdraw/mpesa")
 async def withdraw_mpesa(
@@ -380,7 +380,7 @@ async def withdraw_mpesa(
         raise HTTPException(400, "Phone number is required")
     
     try:
-        formatted_phone = format_phone_for_pesapal(phone)
+        formatted_phone = format_phone_for_mpesa(phone)
     except ValueError as e:
         raise HTTPException(400, str(e))
     
@@ -420,7 +420,7 @@ async def withdraw_mpesa(
         net_amount=amount,
         currency="KES",
         tx_ref=reference,
-        provider="pesapal",
+        provider="mpesa",
         provider_ref=None,
         failure_reason=None,
         beneficiary_phone=formatted_phone,
@@ -428,8 +428,6 @@ async def withdraw_mpesa(
         completed_at=None
     )
     db.add(tx)
-    
-    # Add platform revenue for fee
     revenue = PlatformRevenue(
         id=str(uuid.uuid4()),
         transaction_id=tx_id,
@@ -444,18 +442,18 @@ async def withdraw_mpesa(
         db.rollback()
         raise HTTPException(500, f"Ledger update failed: {str(e)}")
     
-    # Process external payment via PesaPal B2C
-    from ..services.pesapal import trigger_pesapal_b2c_payment
+    # Process external payment via M-Pesa B2C
+    from ..services.mpesa import b2c_payment
     try:
-        pesapal_result = await trigger_pesapal_b2c_payment(
+        mpesa_result = await b2c_payment(
             phone=formatted_phone,
             amount=float(amount),
             reference=reference,
             description=f"Withdrawal - {reference}"
         )
         
-        # Store PesaPal references
-        tx.provider_ref = pesapal_result.get("order_tracking_id")
+        # Store M-Pesa references
+        tx.provider_ref = mpesa_result.get("conversation_id")
         db.commit()
         
         # Send withdrawal notification email
@@ -473,7 +471,7 @@ async def withdraw_mpesa(
             "status": "processing",
             "message": "Withdrawal initiated",
             "withdrawal_id": tx_id,
-            "order_tracking_id": tx.provider_ref,
+            "conversation_id": tx.provider_ref,
             "tx_ref": reference
         }
     except Exception as e:
@@ -512,14 +510,14 @@ async def get_withdrawal_status(
     if not transaction:
         raise HTTPException(404, "Withdrawal not found")
     
-    # If processing, check with PesaPal
+    # If processing, check with M-Pesa
     if transaction.status == TransactionStatus.PROCESSING and transaction.provider_ref:
-        from ..services.pesapal import check_pesapal_payout_status
+        from ..services.mpesa import check_stk_push_status
         try:
-            result = await check_pesapal_payout_status(transaction.provider_ref)
+            result = await check_stk_push_status(transaction.provider_ref)
             
-            # Update status based on PesaPal response
-            if result.get("complete") or result.get("payment_status") == "COMPLETED":
+            # Update status based on M-Pesa response
+            if result.get("complete") or result.get("success"):
                 transaction.status = TransactionStatus.COMPLETED
                 transaction.completed_at = datetime.utcnow()
                 db.commit()
@@ -571,14 +569,14 @@ async def get_deposit_status(
     if not transaction:
         raise HTTPException(404, "Transaction not found")
     
-    # If processing, check with PesaPal
+    # If processing, check with M-Pesa
     if transaction.status == TransactionStatus.PROCESSING and transaction.provider_ref:
-        from ..services.pesapal import check_pesapal_status
+        from ..services.mpesa import check_stk_push_status
         try:
-            result = await check_pesapal_status(transaction.provider_ref)
+            result = await check_stk_push_status(transaction.provider_ref)
             
-            # Update status based on PesaPal response
-            if result.get("complete") or result.get("status") == "COMPLETED":
+            # Update status based on M-Pesa response
+            if result.get("complete") or result.get("success"):
                 transaction.status = TransactionStatus.COMPLETED
                 transaction.completed_at = datetime.utcnow()
                 # Add funds to wallet
@@ -805,64 +803,64 @@ async def get_withdrawal_metrics(
         "total_withdrawn": float(total_withdrawn)
     }
 
-# --- 7. PESAPAL SPECIFIC ROUTES ---
+# --- 7. MPESA SPECIFIC ROUTES ---
 
-@router.get("/pesapal/stats")
-async def get_pesapal_stats(
+@router.get("/mpesa/stats")
+async def get_mpesa_stats(
     current_user: dict = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Get PesaPal transaction statistics"""
+    """Get M-Pesa transaction statistics"""
     user_op_id = current_user["operator_id"]
     wallet = db.query(Wallet).filter(Wallet.operator_id == user_op_id).first()
     
     if not wallet:
         return {"balance": 0, "transactions": 0}
     
-    # Count PesaPal transactions
-    pesapal_count = db.query(func.count(Transaction.id)).filter(
+    # Count M-Pesa transactions
+    mpesa_count = db.query(func.count(Transaction.id)).filter(
         Transaction.wallet_id == wallet.id,
-        Transaction.provider == "pesapal"
+        Transaction.provider == "mpesa"
     ).scalar() or 0
     
-    # Sum of PesaPal deposits (pending might be at PesaPal)
-    pesapal_balance = db.query(func.sum(Transaction.amount)).filter(
+    # Sum of M-Pesa deposits (pending might be at M-Pesa)
+    mpesa_balance = db.query(func.sum(Transaction.amount)).filter(
         Transaction.wallet_id == wallet.id,
-        Transaction.provider == "pesapal",
+        Transaction.provider == "mpesa",
         Transaction.status == TransactionStatus.PROCESSING,
         Transaction.tx_type == TransactionType.DEPOSIT
     ).scalar() or 0
     
     return {
-        "balance": float(pesapal_balance),
-        "total_transactions": pesapal_count,
-        "provider": "pesapal"
+        "balance": float(mpesa_balance),
+        "total_transactions": mpesa_count,
+        "provider": "mpesa"
     }
 
 # --- 8. ADMIN ROUTES ---
 
-@router.get("/admin/pesapal/metrics")
-async def get_admin_pesapal_metrics(
+@router.get("/admin/mpesa/metrics")
+async def get_admin_mpesa_metrics(
     current_user: dict = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Admin endpoint for PesaPal metrics (admin only)"""
+    """Admin endpoint for M-Pesa metrics (admin only)"""
     # Check if user is admin
     if current_user.get("role") != "admin":
         raise HTTPException(403, "Admin access required")
     
-    # Get all PesaPal transactions
+    # Get all M-Pesa transactions
     total_transactions = db.query(func.count(Transaction.id)).filter(
-        Transaction.provider == "pesapal"
+        Transaction.provider == "mpesa"
     ).scalar() or 0
     
     successful = db.query(func.count(Transaction.id)).filter(
-        Transaction.provider == "pesapal",
+        Transaction.provider == "mpesa",
         Transaction.status == TransactionStatus.COMPLETED
     ).scalar() or 0
     
     failed = db.query(func.count(Transaction.id)).filter(
-        Transaction.provider == "pesapal",
+        Transaction.provider == "mpesa",
         Transaction.status == TransactionStatus.FAILED
     ).scalar() or 0
     
@@ -871,7 +869,7 @@ async def get_admin_pesapal_metrics(
     
     # Total settled amount
     total_settled = db.query(func.sum(Transaction.amount)).filter(
-        Transaction.provider == "pesapal",
+        Transaction.provider == "mpesa",
         Transaction.status == TransactionStatus.COMPLETED
     ).scalar() or 0
     
@@ -904,61 +902,3 @@ async def get_revenue_volume(
 
 # --- 9. WEBHOOK ROUTE ---
 
-@router.post("/webhook/pesapal")
-async def pesapal_ipn(request: Request, db: Session = Depends(get_db)):
-    """Handle PesaPal IPN (Instant Payment Notification)"""
-    try:
-        payload = await request.json()
-    except:
-        payload = await request.body()
-        try:
-            import json
-            payload = json.loads(payload)
-        except:
-            payload = {}
-    
-    from ..services.pesapal import handle_pesapal_webhook
-    result = await handle_pesapal_webhook(payload)
-    
-    if result.get("status") == "completed":
-        # Find and update transaction
-        order_tracking_id = result.get("order_tracking_id")
-        merchant_reference = result.get("merchant_reference")
-        
-        transaction = db.query(Transaction).filter(
-            (Transaction.provider_ref == order_tracking_id) | (Transaction.tx_ref == merchant_reference)
-        ).first()
-        
-        if transaction and transaction.status == TransactionStatus.PROCESSING:
-            transaction.status = TransactionStatus.COMPLETED
-            transaction.completed_at = datetime.utcnow()
-            
-            # Update wallet balance for deposits
-            if transaction.tx_type == TransactionType.DEPOSIT:
-                wallet = db.query(Wallet).filter(Wallet.id == transaction.wallet_id).first()
-                if wallet:
-                    wallet.kes_balance += transaction.amount
-            
-            db.commit()
-            
-    elif result.get("status") == "failed":
-        # Find and mark transaction as failed
-        order_tracking_id = result.get("order_tracking_id")
-        
-        transaction = db.query(Transaction).filter(
-            Transaction.provider_ref == order_tracking_id
-        ).first()
-        
-        if transaction and transaction.status == TransactionStatus.PROCESSING:
-            transaction.status = TransactionStatus.FAILED
-            transaction.failure_reason = result.get("reason", "Payment failed")
-            
-            # Refund for withdrawals
-            if transaction.tx_type == TransactionType.WITHDRAWAL:
-                wallet = db.query(Wallet).filter(Wallet.id == transaction.wallet_id).first()
-                if wallet:
-                    wallet.kes_balance += transaction.amount + transaction.fee
-            
-            db.commit()
-    
-    return {"status": "received"}

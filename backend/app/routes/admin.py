@@ -2321,29 +2321,29 @@ async def get_revenue_volume(
         else:
             return {"monthly": []}
 
-# ==================== PESAPAL METRICS ENDPOINT ====================
+# ==================== MPESA METRICS ENDPOINT ====================
 
-@router.get("/pesapal/metrics")
-async def get_pesapal_metrics(
+@router.get("/mpesa/metrics")
+async def get_mpesa_metrics(
     current_user: dict = Depends(verify_admin),
     db: Session = Depends(get_db)
 ):
-    """Get PesaPal metrics for admin dashboard"""
+    """Get M-Pesa metrics for admin dashboard"""
     try:
         # Try to get real metrics from transactions
         if WALLET_MODELS_AVAILABLE:
-            # Get all PesaPal transactions
+            # Get all M-Pesa transactions
             total_transactions = db.execute(
                 select(func.count())
                 .select_from(Transaction)
-                .where(Transaction.provider == "pesapal")
+                .where(Transaction.provider == "mpesa")
             ).scalar() or 0
             
             successful = db.execute(
                 select(func.count())
                 .select_from(Transaction)
                 .where(
-                    Transaction.provider == "pesapal",
+                    Transaction.provider == "mpesa",
                     Transaction.status == "completed"
                 )
             ).scalar() or 0
@@ -2352,7 +2352,7 @@ async def get_pesapal_metrics(
                 select(func.count())
                 .select_from(Transaction)
                 .where(
-                    Transaction.provider == "pesapal",
+                    Transaction.provider == "mpesa",
                     Transaction.status == "failed"
                 )
             ).scalar() or 0
@@ -2365,7 +2365,7 @@ async def get_pesapal_metrics(
                 select(func.sum(Transaction.amount))
                 .select_from(Transaction)
                 .where(
-                    Transaction.provider == "pesapal",
+                    Transaction.provider == "mpesa",
                     Transaction.status == "completed"
                 )
             ).scalar() or 0
@@ -2389,7 +2389,7 @@ async def get_pesapal_metrics(
             "total_settled": 0
         }
     except Exception as e:
-        logging.error(f"Failed to get PesaPal metrics: {str(e)}")
+        logging.error(f"Failed to get M-Pesa metrics: {str(e)}")
         # Return empty data on error
         return {
             "total_transactions": 0,
@@ -2400,4 +2400,4 @@ async def get_pesapal_metrics(
             "total_settled": 0
         }
     
-    # End of pesapal metrics endpoint
+    # End of mpesa metrics endpoint
