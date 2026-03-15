@@ -287,7 +287,7 @@ export default function AddFundsModal({ isOpen, onClose, onSuccess }: AddFundsMo
               </h2>
               <div className="flex items-center gap-1 mt-0.5">
                 <Lock size={10} className="text-emerald-600" />
-                <span className="text-[10px] text-gray-400">Secured by IntaSend</span>
+                <span className="text-[10px] text-gray-400">Secured by PesaPal</span>
               </div>
             </div>
           </div>
@@ -313,7 +313,7 @@ export default function AddFundsModal({ isOpen, onClose, onSuccess }: AddFundsMo
                 </div>
                 <div className="flex-1 text-left">
                   <p className="text-sm font-medium text-gray-900">M-PESA</p>
-                  <p className="text-xs text-gray-400">Instant STK Push via IntaSend</p>
+                  <p className="text-xs text-gray-400">Instant STK Push via PesaPal</p>
                 </div>
                 <span className="text-[10px] px-2 py-1 bg-emerald-100 text-emerald-700 rounded-full font-medium">Active</span>
               </button>

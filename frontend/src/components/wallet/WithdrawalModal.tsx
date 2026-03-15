@@ -329,7 +329,7 @@ export default function WithdrawalModal({ isOpen, onClose, balances, walletAddre
               </h2>
               <div className="flex items-center gap-1 mt-0.5">
                 <Shield size={10} className="text-emerald-600" />
-                <span className="text-[10px] text-gray-400">Secured by IntaSend</span>
+                <span className="text-[10px] text-gray-400">Secured by PesaPal</span>
               </div>
             </div>
           </div>
@@ -485,7 +485,7 @@ export default function WithdrawalModal({ isOpen, onClose, balances, walletAddre
               </button>
 
               <p className="text-[10px] text-center text-gray-400">
-                Withdrawals are processed via IntaSend and may take a few minutes
+                Withdrawals are processed via PesaPal and may take a few minutes
               </p>
             </form>
           )}

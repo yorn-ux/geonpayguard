@@ -340,7 +340,7 @@ export default function ConvertModal({ isOpen, onClose, balances, onSuccess }: C
               </h2>
               <div className="flex items-center gap-1 mt-0.5">
                 <Shield size={10} className="text-emerald-600" />
-                <span className="text-[10px] text-gray-400">Secured by IntaSend</span>
+                <span className="text-[10px] text-gray-400">Secured by PesaPal</span>
               </div>
             </div>
           </div>

@@ -74,9 +74,9 @@ class Transaction(Base):
     node_id = Column(String(50), nullable=True)
     tx_ref = Column(String(100), unique=True, index=True) 
     
-    # --- NEW: Intasend Provider Fields ---
-    provider = Column(String(50), nullable=True)  # 'intasend', 'mpesa', 'internal', etc.
-    provider_ref = Column(String(100), nullable=True, index=True)  # Intasend invoice_id or payout_id
+    # --- PesaPal Provider Fields ---
+    provider = Column(String(50), nullable=True)  # 'pesapal', 'mpesa', 'internal', etc.
+    provider_ref = Column(String(100), nullable=True, index=True)  # PesaPal order_tracking_id or payout_id
     provider_data = Column(JSON, nullable=True)  # Store full provider response
     
     metadata_json = Column(JSON, nullable=True)

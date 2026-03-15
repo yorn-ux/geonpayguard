@@ -14,10 +14,10 @@ from ..database import get_db
 from ..models.wallet import Wallet, Transaction, TransactionType, TransactionStatus, PlatformRevenue
 from .auth import get_current_user
 
-# Intasend API Configuration
-INTASEND_BASE_URL = os.getenv("INTASEND_BASE_URL", "https://sandbox.intasend.com/api")
-INTASEND_PUBLISHABLE_KEY = os.getenv("INTASEND_PUBLISHABLE_KEY")
-INTASEND_SECRET_KEY = os.getenv("INTASEND_SECRET_KEY")
+# PesaPal API Configuration
+PESAPAL_BASE_URL = os.getenv("PESAPAL_BASE_URL", "https://cybqa.pesapal.com")
+PESAPAL_CONSUMER_KEY = os.getenv("PESAPAL_CONSUMER_KEY", "")
+PESAPAL_CONSUMER_SECRET = os.getenv("PESAPAL_CONSUMER_SECRET", "")
 
 router = APIRouter(tags=["Unified Wallet"])
 
@@ -34,14 +34,14 @@ def calculate_withdrawal_fee(amount: Decimal, method: str, history_count: int, t
     volume_discount = min(total_volume / Decimal("10000000"), Decimal("0.1"))
     
     final_perc = max(Decimal("0.25"), base_perc - loyalty_discount - volume_discount)
-    if method == "mpesa": final_perc += Decimal("0.25")  # Increased for Intasend payouts
+    if method == "mpesa": final_perc += Decimal("0.25")  # Increased for PesaPal payouts
     
     fee = (amount * final_perc) / 100
     min_fee = Decimal("45") if method == "mpesa" else Decimal("5")  # Min KES 45 for M-PESA
     return max(fee, min_fee)
 
-def format_phone_for_intasend(phone: str) -> str:
-    """Format phone number for Intasend (254XXXXXXXXX format)"""
+def format_phone_for_pesapal(phone: str) -> str:
+    """Format phone number for PesaPal (254XXXXXXXXX format)"""
     # Remove all non-numeric characters
     cleaned = ''.join(filter(str.isdigit, phone))
     
@@ -57,27 +57,21 @@ def format_phone_for_intasend(phone: str) -> str:
     
     return cleaned
 
-def generate_intasend_headers():
-    """Generate headers for Intasend API requests"""
+def generate_pesapal_headers():
+    """Generate headers for PesaPal API requests"""
     return {
-        "X-IntaSend-Public-API-Key": INTASEND_PUBLISHABLE_KEY,
-        "Authorization": f"Bearer {INTASEND_SECRET_KEY}",
         "Content-Type": "application/json"
     }
 
-async def check_intasend_transaction_status(invoice_id: str) -> dict:
-    """Check transaction status with Intasend"""
-    async with httpx.AsyncClient() as client:
-        try:
-            url = f"{INTASEND_BASE_URL}/v1/payment/status/{invoice_id}/"
-            response = await client.get(url, headers=generate_intasend_headers(), timeout=10)
-            
-            if response.status_code == 200:
-                return response.json()
-            return {"status": "unknown"}
-        except Exception as e:
-            print(f"Intasend status check error: {e}")
-            return {"status": "error"}
+async def check_pesapal_transaction_status(order_tracking_id: str) -> dict:
+    """Check transaction status with PesaPal"""
+    from ..services.pesapal import check_pesapal_status
+    try:
+        result = await check_pesapal_status(order_tracking_id)
+        return result
+    except Exception as e:
+        print(f"PesaPal status check error: {e}")
+        return {"status": "error"}
 
 # --- 2. QUERY ROUTES ---
 
@@ -177,10 +171,10 @@ async def get_transaction_status(
     if not transaction:
         raise HTTPException(404, "Transaction not found")
     
-    # If it's an Intasend transaction and still processing, check with provider
-    if transaction.provider == "intasend" and transaction.status == TransactionStatus.PROCESSING:
+    # If it's a PesaPal transaction and still processing, check with provider
+    if transaction.provider == "pesapal" and transaction.status == TransactionStatus.PROCESSING:
         if transaction.provider_ref:
-            status_data = await check_intasend_transaction_status(transaction.provider_ref)
+            status_data = await check_pesapal_transaction_status(transaction.provider_ref)
             
             # Update status if changed
             if status_data.get("payment_status") == "COMPLETE" or status_data.get("complete") == True:
@@ -202,7 +196,7 @@ async def get_transaction_status(
         "failure_reason": transaction.failure_reason
     }
 
-# --- 3. DEPOSIT ROUTES (Intasend STK Push) ---
+# --- 3. DEPOSIT ROUTES (PesaPal STK Push) ---
 
 @router.post("/deposit/mpesa")
 async def deposit_mpesa(
@@ -228,8 +222,8 @@ async def deposit_mpesa(
         raise HTTPException(400, "Phone number is required")
     
     try:
-        # Format phone for Intasend
-        formatted_phone = format_phone_for_intasend(phone)
+        # Format phone for PesaPal
+        formatted_phone = format_phone_for_pesapal(phone)
         
         # Create transaction record - FIXED: Added all required fields
         tx_id = str(uuid.uuid4())
@@ -245,7 +239,7 @@ async def deposit_mpesa(
             net_amount=amount,  # CRITICAL: Added net_amount
             currency="KES",
             tx_ref=reference,
-            provider="intasend",
+            provider="pesapal",
             provider_ref=None,
             failure_reason=None,
             beneficiary_phone=formatted_phone,
@@ -255,46 +249,34 @@ async def deposit_mpesa(
         db.add(tx)
         db.commit()
         
-        # Call Intasend STK Push
-        async with httpx.AsyncClient() as client:
-            url = f"{INTASEND_BASE_URL}/v1/payment/mpesa-stk-push/"
-            
-            intasend_payload = {
-                "phone_number": formatted_phone,
-                "amount": int(amount),
-                "api_ref": reference[:20],
-                "host": os.getenv("APP_DOMAIN", ""),
-                "currency": "KES"
-            }
-            
-            response = await client.post(
-                url,
-                json=intasend_payload,
-                headers=generate_intasend_headers(),
-                timeout=30
+        # Call PesaPal STK Push
+        from ..services.pesapal import submit_pesapal_order
+        try:
+            pesapal_result = await submit_pesapal_order(
+                phone=formatted_phone,
+                amount=float(amount),
+                reference=reference,
+                description=f"Wallet Deposit - {reference}"
             )
             
-            result = response.json()
+            # Update transaction with PesaPal reference
+            tx.provider_ref = pesapal_result.get("order_tracking_id")
+            tx.provider_data = pesapal_result
+            db.commit()
             
-            if response.status_code in [200, 201] and result.get("invoice"):
-                # Store Intasend reference
-                tx.provider_ref = result.get("invoice_id") or result.get("invoice", {}).get("invoice_id")
-                db.commit()
-                
-                return {
-                    "status": "pending",
-                    "message": "STK Push sent to phone",
-                    "invoice_id": tx.provider_ref,
-                    "tracking_id": result.get("tracking_id"),
-                    "tx_id": tx_id,
-                    "tx_ref": reference
-                }
-            else:
-                # Mark as failed
-                tx.status = TransactionStatus.FAILED
-                tx.failure_reason = result.get("detail", "STK Push failed")
-                db.commit()
-                raise HTTPException(400, tx.failure_reason)
+            return {
+                "status": "pending",
+                "message": "STK Push sent to phone",
+                "order_tracking_id": tx.provider_ref,
+                "tx_id": tx_id,
+                "tx_ref": reference
+            }
+        except Exception as e:
+            # Mark as failed
+            tx.status = TransactionStatus.FAILED
+            tx.failure_reason = str(e)
+            db.commit()
+            raise HTTPException(400, str(e))
                 
     except httpx.RequestError as e:
         # Update transaction with error
@@ -316,25 +298,26 @@ async def deposit_mpesa(
         raise HTTPException(500, f"Deposit failed: {str(e)}")
 
 @router.post("/deposit/mpesa/webhook")
-async def intasend_webhook(request: Request, db: Session = Depends(get_db)):
-    """Handle Intasend webhook for payment notifications"""
+async def pesapal_webhook(request: Request, db: Session = Depends(get_db)):
+    """Handle PesaPal webhook for payment notifications"""
     payload = await request.json()
     
-    # Verify webhook signature (implement based on Intasend docs)
-    # signature = request.headers.get("X-Intasend-Signature")
+    # Verify webhook signature (implement based on PesaPal docs)
     
-    event_type = payload.get("event")
-    data = payload.get("data", {})
+    event_type = payload.get("payment_status")
+    order_tracking_id = payload.get("order_tracking_id")
+    merchant_reference = payload.get("merchant_reference")
+    amount = payload.get("amount")
     
-    if event_type == "payment.completed":
+    if event_type == "COMPLETED":
         # Payment successful
-        invoice_id = data.get("invoice_id")
-        api_ref = data.get("api_ref")
-        amount = data.get("amount")
+        order_tracking_id = payload.get("order_tracking_id")
+        merchant_reference = payload.get("merchant_reference")
+        amount = payload.get("amount")
         
         # Find transaction
         transaction = db.query(Transaction).filter(
-            (Transaction.provider_ref == invoice_id) | (Transaction.tx_ref == api_ref)
+            (Transaction.provider_ref == order_tracking_id) | (Transaction.tx_ref == merchant_reference)
         ).first()
         
         if transaction:
@@ -348,20 +331,76 @@ async def intasend_webhook(request: Request, db: Session = Depends(get_db)):
             
             db.commit()
             
-    elif event_type == "payment.failed":
+    elif event_type == "FAILED":
         # Payment failed
-        invoice_id = data.get("invoice_id")
-        reason = data.get("reason", "Unknown error")
+        order_tracking_id = payload.get("order_tracking_id")
+        reason = payload.get("reason", "Unknown error")
         
-        transaction = db.query(Transaction).filter(Transaction.provider_ref == invoice_id).first()
+        transaction = db.query(Transaction).filter(Transaction.provider_ref == order_tracking_id).first()
         if transaction:
             transaction.status = TransactionStatus.FAILED
             transaction.failure_reason = reason
             db.commit()
     
+    return {
+        "status": "received",
+        "transaction_id": transaction.id if transaction else None
+    }
+
+# --- 5. PESAPAL WEBHOOK ROUTE ---
+
+@router.post("/webhook/pesapal")
+async def pesapal_ipn(request: Request, db: Session = Depends(get_db)):
+    """Handle PesaPal IPN (Instant Payment Notification)"""
+    payload = await request.json()
+    
+    from ..services.pesapal import handle_pesapal_webhook
+    result = await handle_pesapal_webhook(payload)
+    
+    if result.get("status") == "completed":
+        # Find and update transaction
+        order_tracking_id = result.get("order_tracking_id")
+        merchant_reference = result.get("merchant_reference")
+        
+        transaction = db.query(Transaction).filter(
+            (Transaction.provider_ref == order_tracking_id) | (Transaction.tx_ref == merchant_reference)
+        ).first()
+        
+        if transaction and transaction.status == TransactionStatus.PROCESSING:
+            transaction.status = TransactionStatus.COMPLETED
+            transaction.completed_at = datetime.utcnow()
+            
+            # Update wallet balance for deposits
+            if transaction.tx_type == TransactionType.DEPOSIT:
+                wallet = db.query(Wallet).filter(Wallet.id == transaction.wallet_id).first()
+                if wallet:
+                    wallet.kes_balance += transaction.amount
+            
+            db.commit()
+            
+    elif result.get("status") == "failed":
+        # Find and mark transaction as failed
+        order_tracking_id = result.get("order_tracking_id")
+        
+        transaction = db.query(Transaction).filter(
+            Transaction.provider_ref == order_tracking_id
+        ).first()
+        
+        if transaction and transaction.status == TransactionStatus.PROCESSING:
+            transaction.status = TransactionStatus.FAILED
+            transaction.failure_reason = result.get("reason", "Payment failed")
+            
+            # Refund for withdrawals
+            if transaction.tx_type == TransactionType.WITHDRAWAL:
+                wallet = db.query(Wallet).filter(Wallet.id == transaction.wallet_id).first()
+                if wallet:
+                    wallet.kes_balance += transaction.amount + transaction.fee
+            
+            db.commit()
+    
     return {"status": "received"}
 
-# --- 4. WITHDRAWAL ROUTES (Intasend Payouts) ---
+# --- 4. WITHDRAWAL ROUTES (PesaPal B2C Payouts) ---
 
 @router.post("/withdraw/mpesa")
 async def withdraw_mpesa(
@@ -389,7 +428,7 @@ async def withdraw_mpesa(
         raise HTTPException(400, "Phone number is required")
     
     try:
-        formatted_phone = format_phone_for_intasend(phone)
+        formatted_phone = format_phone_for_pesapal(phone)
     except ValueError as e:
         raise HTTPException(400, str(e))
     
@@ -429,7 +468,7 @@ async def withdraw_mpesa(
         net_amount=amount - fee,  # CRITICAL: Added net_amount
         currency="KES",
         tx_ref=reference,
-        provider="intasend",
+        provider="pesapal",
         provider_ref=None,
         failure_reason=None,
         beneficiary_phone=formatted_phone,
@@ -453,59 +492,35 @@ async def withdraw_mpesa(
         db.rollback()
         raise HTTPException(500, f"Ledger update failed: {str(e)}")
     
-    # Process external payment via Intasend
+    # Process external payment via PesaPal B2C
+    from ..services.pesapal import trigger_pesapal_b2c_payment
     try:
-        async with httpx.AsyncClient() as client:
-            url = f"{INTASEND_BASE_URL}/v1/payout/"
-            
-            payout_payload = {
-                "phone_number": formatted_phone,
-                "amount": int(amount),
-                "api_ref": reference[:20],
-                "currency": "KES",
-                "provider": "MPESA",
-                "narrative": f"Withdrawal: {reference}"
-            }
-            
-            response = await client.post(
-                url,
-                json=payout_payload,
-                headers=generate_intasend_headers(),
-                timeout=30
-            )
-            
-            result = response.json()
-            
-            if response.status_code in [200, 201]:
-                # Store Intasend references
-                tx.provider_ref = result.get("id") or result.get("payout_id")
-                tx.provider_data = result
-                db.commit()
-                
-                return {
-                    "status": "processing",
-                    "message": "Withdrawal initiated",
-                    "withdrawal_id": tx_id,
-                    "payout_id": tx.provider_ref,
-                    "tracking_id": result.get("tracking_id"),
-                    "tx_ref": reference
-                }
-            else:
-                # Refund the deducted amount
-                wallet.kes_balance += total_deduction
-                tx.status = TransactionStatus.FAILED
-                tx.failure_reason = result.get("detail", "Payout failed")
-                db.commit()
-                
-                raise HTTPException(400, tx.failure_reason)
-                
-    except httpx.RequestError as e:
-        # Refund on network error
+        pesapal_result = await trigger_pesapal_b2c_payment(
+            phone=formatted_phone,
+            amount=float(amount),
+            reference=reference,
+            description=f"Withdrawal - {reference}"
+        )
+        
+        # Store PesaPal references
+        tx.provider_ref = pesapal_result.get("order_tracking_id")
+        tx.provider_data = pesapal_result
+        db.commit()
+        
+        return {
+            "status": "processing",
+            "message": "Withdrawal initiated",
+            "withdrawal_id": tx_id,
+            "order_tracking_id": tx.provider_ref,
+            "tx_ref": reference
+        }
+    except Exception as e:
+        # Refund the deducted amount
         wallet.kes_balance += total_deduction
         tx.status = TransactionStatus.FAILED
-        tx.failure_reason = f"Network error: {str(e)}"
+        tx.failure_reason = str(e)
         db.commit()
-        raise HTTPException(502, "Payout gateway unreachable")
+        raise HTTPException(400, str(e))
 
 @router.get("/withdrawal/status/{payout_id}")
 async def get_withdrawal_status(
@@ -535,27 +550,23 @@ async def get_withdrawal_status(
     if not transaction:
         raise HTTPException(404, "Withdrawal not found")
     
-    # If processing, check with Intasend
+    # If processing, check with PesaPal
     if transaction.status == TransactionStatus.PROCESSING and transaction.provider_ref:
-        async with httpx.AsyncClient() as client:
-            try:
-                url = f"{INTASEND_BASE_URL}/v1/payout/{transaction.provider_ref}/"
-                response = await client.get(url, headers=generate_intasend_headers(), timeout=10)
-                
-                if response.status_code == 200:
-                    result = response.json()
-                    
-                    # Update status based on Intasend response
-                    if result.get("transaction_state") == "COMPLETED":
-                        transaction.status = TransactionStatus.COMPLETED
-                        transaction.completed_at = datetime.utcnow()
-                        db.commit()
-                    elif result.get("transaction_state") == "FAILED":
-                        transaction.status = TransactionStatus.FAILED
-                        transaction.failure_reason = result.get("failure_reason", "Payout failed")
-                        db.commit()
-            except Exception as e:
-                print(f"Error checking payout status: {e}")
+        from ..services.pesapal import check_pesapal_payout_status
+        try:
+            result = await check_pesapal_payout_status(transaction.provider_ref)
+            
+            # Update status based on PesaPal response
+            if result.get("complete") or result.get("payment_status") == "COMPLETED":
+                transaction.status = TransactionStatus.COMPLETED
+                transaction.completed_at = datetime.utcnow()
+                db.commit()
+            elif result.get("status") == "FAILED":
+                transaction.status = TransactionStatus.FAILED
+                transaction.failure_reason = result.get("reason", "Payout failed")
+                db.commit()
+        except Exception as e:
+            print(f"Error checking payout status: {e}")
     
     return {
         "id": transaction.id,
@@ -767,64 +778,64 @@ async def get_withdrawal_metrics(
         "total_withdrawn": float(total_withdrawn)
     }
 
-# --- 7. INTASEND SPECIFIC ROUTES ---
+# --- 7. PESAPAL SPECIFIC ROUTES ---
 
-@router.get("/intasend/stats")
-async def get_intasend_stats(
+@router.get("/pesapal/stats")
+async def get_pesapal_stats(
     current_user: dict = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Get Intasend transaction statistics"""
+    """Get PesaPal transaction statistics"""
     user_op_id = current_user["operator_id"]
     wallet = db.query(Wallet).filter(Wallet.operator_id == user_op_id).first()
     
     if not wallet:
         return {"balance": 0, "transactions": 0}
     
-    # Count Intasend transactions
-    intasend_count = db.query(func.count(Transaction.id)).filter(
+    # Count PesaPal transactions
+    pesapal_count = db.query(func.count(Transaction.id)).filter(
         Transaction.wallet_id == wallet.id,
-        Transaction.provider == "intasend"
+        Transaction.provider == "pesapal"
     ).scalar() or 0
     
-    # Sum of Intasend deposits (pending might be at Intasend)
-    intasend_balance = db.query(func.sum(Transaction.amount)).filter(
+    # Sum of PesaPal deposits (pending might be at PesaPal)
+    pesapal_balance = db.query(func.sum(Transaction.amount)).filter(
         Transaction.wallet_id == wallet.id,
-        Transaction.provider == "intasend",
+        Transaction.provider == "pesapal",
         Transaction.status == TransactionStatus.PROCESSING,
         Transaction.tx_type == TransactionType.DEPOSIT
     ).scalar() or 0
     
     return {
-        "balance": float(intasend_balance),
-        "total_transactions": intasend_count,
-        "provider": "intasend"
+        "balance": float(pesapal_balance),
+        "total_transactions": pesapal_count,
+        "provider": "pesapal"
     }
 
 # --- 8. ADMIN ROUTES ---
 
-@router.get("/admin/intasend/metrics")
-async def get_admin_intasend_metrics(
+@router.get("/admin/pesapal/metrics")
+async def get_admin_pesapal_metrics(
     current_user: dict = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Admin endpoint for Intasend metrics (admin only)"""
+    """Admin endpoint for PesaPal metrics (admin only)"""
     # Check if user is admin
     if current_user.get("role") != "admin":
         raise HTTPException(403, "Admin access required")
     
-    # Get all Intasend transactions
+    # Get all PesaPal transactions
     total_transactions = db.query(func.count(Transaction.id)).filter(
-        Transaction.provider == "intasend"
+        Transaction.provider == "pesapal"
     ).scalar() or 0
     
     successful = db.query(func.count(Transaction.id)).filter(
-        Transaction.provider == "intasend",
+        Transaction.provider == "pesapal",
         Transaction.status == TransactionStatus.COMPLETED
     ).scalar() or 0
     
     failed = db.query(func.count(Transaction.id)).filter(
-        Transaction.provider == "intasend",
+        Transaction.provider == "pesapal",
         Transaction.status == TransactionStatus.FAILED
     ).scalar() or 0
     
@@ -833,7 +844,7 @@ async def get_admin_intasend_metrics(
     
     # Total settled amount
     total_settled = db.query(func.sum(Transaction.amount)).filter(
-        Transaction.provider == "intasend",
+        Transaction.provider == "pesapal",
         Transaction.status == TransactionStatus.COMPLETED
     ).scalar() or 0
     

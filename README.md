@@ -193,7 +193,10 @@ Once the backend is running, visit:
 | `RESEND_API_KEY` | Resend email API key | Yes |
 | `RESEND_FROM_EMAIL` | Sender email address | Yes |
 | `STRIPE_SECRET_KEY` | Stripe API secret | For card payments |
-| `INTASEND_TOKEN` | Intasend API token | For M-Pesa |
+| `PESAPAL_CONSUMER_KEY` | PesaPal Consumer Key | For M-Pesa |
+| `PESAPAL_CONSUMER_SECRET` | PesaPal Consumer Secret | For M-Pesa |
+| `PESAPAL_BASE_URL` | PesaPal API URL | `https://cybqa.pesapal.com` (sandbox) |
+| `PESAPAL_CALLBACK_URL` | PesaPal callback URL | Your callback URL |
 | `BSC_RPC_URL` | BSC node RPC URL | For BEP20 |
 | `ETH_RPC_URL` | Ethereum node RPC URL | For ERC20 |
 | `REDIS_URL` | Redis connection string | For caching |

@@ -1,12 +1,12 @@
 'use client';
 
 import { 
-  ShieldCheck, ArrowRight, Lock, FileCheck, 
-  Scale,  ChevronRight,
-  Fingerprint, TrendingUp, Briefcase, 
-  Zap, Users, CheckCircle, Award, Clock,
-  Star,
-  Github, Twitter, Linkedin, Mail
+  ArrowRight, Lock, FileCheck, 
+  Scale, ChevronRight, Fingerprint,  
+   Users, CheckCircle, Award, Clock,
+  Star, Github, Twitter, Linkedin, Mail, 
+  Sparkles, Building2,  BadgeCheck, Gem,
+  Layers, CircuitBoard, Shield, 
 } from 'lucide-react';
 import Link from 'next/link';
 import { useState, useEffect, useRef } from 'react';
@@ -21,7 +21,6 @@ export default function FinalLandingPage() {
     const handleScroll = () => setScrolled(window.scrollY > 20);
     window.addEventListener('scroll', handleScroll);
     
-    // Auto-rotate testimonials
     const interval = setInterval(() => {
       setActiveTestimonial((prev) => (prev + 1) % testimonials.length);
     }, 5000);
@@ -32,7 +31,6 @@ export default function FinalLandingPage() {
     };
   }, []);
 
-  // Parallax effect on hero
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
       if (heroRef.current) {
@@ -47,6 +45,72 @@ export default function FinalLandingPage() {
     window.addEventListener('mousemove', handleMouseMove);
     return () => window.removeEventListener('mousemove', handleMouseMove);
   }, []);
+
+  // Professional Logo Component - Redesigned
+  const GeonLogo = () => (
+    <div className="relative flex items-center">
+      {/* Main Logo Mark */}
+      <div className="relative w-10 h-10 mr-3">
+        {/* Outer Hexagon Shield */}
+        <div className="absolute inset-0 bg-gradient-to-br from-slate-900 to-slate-700 rounded-xl rotate-45 transform origin-center shadow-lg" />
+        
+        {/* Inner Geometric Pattern */}
+        <div className="absolute inset-[3px] bg-gradient-to-br from-slate-800 to-slate-900 rounded-lg rotate-45 transform origin-center" />
+        
+        {/* Gold Accent Lines */}
+        <div className="absolute inset-0 flex items-center justify-center">
+          <div className="w-4 h-0.5 bg-amber-400/60 rounded-full rotate-45 absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" />
+          <div className="w-4 h-0.5 bg-amber-400/60 rounded-full -rotate-45 absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" />
+        </div>
+        
+        {/* Central Gem/Crystal */}
+        <div className="absolute inset-0 flex items-center justify-center">
+          <div className="relative">
+            <Gem size={16} className="text-amber-400/90" strokeWidth={1.5} />
+            <div className="absolute inset-0 blur-sm bg-amber-400/30 rounded-full" />
+          </div>
+        </div>
+        
+        {/* Security Dots */}
+        <div className="absolute -top-1 -right-1 w-2 h-2 bg-emerald-500 rounded-full border-2 border-white shadow-lg" />
+        <div className="absolute -bottom-1 -left-1 w-2 h-2 bg-emerald-500 rounded-full border-2 border-white shadow-lg" />
+        
+        {/* Rotating Ring Animation */}
+        <div className="absolute -inset-1 border border-amber-400/20 rounded-xl rotate-45 animate-spin-slow" />
+      </div>
+
+      {/* Text Mark */}
+      <div className="flex flex-col">
+        <div className="flex items-baseline">
+          <span className="text-xl font-black tracking-tight text-slate-900">GEON</span>
+          <span className="text-xs font-medium text-slate-400 ml-1 tracking-widest">®</span>
+        </div>
+        <div className="flex items-center gap-1 -mt-1">
+          <Shield size={10} className="text-amber-500" />
+          <span className="text-[8px] font-bold uppercase tracking-[0.3em] text-slate-400">PAYGUARD</span>
+          <BadgeCheck size={10} className="text-emerald-500 ml-1" />
+        </div>
+      </div>
+    </div>
+  );
+
+  // Alternate Minimal Logo for Dark Backgrounds
+  const GeonLogoLight = () => (
+    <div className="relative flex items-center">
+      <div className="relative w-9 h-9 mr-3">
+        <div className="absolute inset-0 bg-white/10 backdrop-blur-sm rounded-xl rotate-45 border border-white/20" />
+        <div className="absolute inset-[2px] bg-white/5 rounded-lg rotate-45" />
+        <div className="absolute inset-0 flex items-center justify-center">
+          <Layers size={14} className="text-white/80" strokeWidth={1.5} />
+        </div>
+        <div className="absolute -top-1 -right-1 w-1.5 h-1.5 bg-emerald-400 rounded-full" />
+      </div>
+      <div className="flex flex-col">
+        <span className="text-lg font-black tracking-tight text-white">GEON</span>
+        <span className="text-[7px] font-bold uppercase tracking-[0.3em] text-white/40">PAYGUARD</span>
+      </div>
+    </div>
+  );
 
   const coreInfrastructure = [
     {
@@ -68,7 +132,7 @@ export default function FinalLandingPage() {
       stats: '48h Resolution'
     },
     {
-      icon: TrendingUp,
+      icon: CircuitBoard,
       title: 'Immutable Audit Trails',
       description: 'Every action is timestamped and logged, providing a transparent ledger for brand compliance.',
       stats: 'Real-time Audit'
@@ -80,119 +144,96 @@ export default function FinalLandingPage() {
       name: 'Sarah Johnson',
       role: 'Fashion Influencer',
       content: 'GeonPayGuard transformed how I work with luxury brands. No more payment anxiety—just secure, guaranteed transactions.',
-      image: '/testimonials/sarah.jpg',
       rating: 5
     },
     {
       name: 'Michael Chen',
-      role: 'Marketing Director, LVMH',
+      role: 'Marketing Director',
       content: 'The institutional-grade security and professional arbitration give us confidence to run multi-million dollar campaigns.',
-      image: '/testimonials/michael.jpg',
       rating: 5
     },
     {
       name: 'Emma Williams',
       role: 'Agency Partner',
       content: 'Managing multiple creator payments has never been easier. The vault system is revolutionary for our workflow.',
-      image: '/testimonials/emma.jpg',
       rating: 5
     }
   ];
 
   const stats = [
-    { value: '$50M+', label: 'Protected Volume', icon: ShieldCheck },
-    { value: '10K+', label: 'Verified Deals', icon: CheckCircle },
+    { value: '$50M+', label: 'Protected Volume', icon: Shield },
+    { value: '10K+', label: 'Verified Deals', icon: BadgeCheck },
     { value: '99.9%', label: 'Success Rate', icon: Award },
     { value: '<24h', label: 'Avg. Settlement', icon: Clock }
   ];
 
-  // Custom Logo Component - Unique "G" with protective ring
-  const GeonLogo = () => (
-    <div className="relative w-8 h-8 flex items-center justify-center">
-      {/* Outer protective ring */}
-      <div className="absolute inset-0 border-2 border-[#1A1C21] rounded-lg opacity-20"></div>
-      {/* Inner protective ring */}
-      <div className="absolute inset-1 border border-[#1A1C21] rounded-md opacity-40"></div>
-      {/* The "G" */}
-      <span className="relative text-lg font-bold text-[#1A1C21]" style={{ transform: 'rotate(0deg)' }}>G</span>
-      {/* Small security dots */}
-      <div className="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 bg-emerald-500 rounded-full"></div>
-      <div className="absolute -bottom-0.5 -left-0.5 w-1.5 h-1.5 bg-emerald-500 rounded-full"></div>
-    </div>
-  );
-
   return (
-    <div className="min-h-screen bg-white text-[#1A1C21] selection:bg-slate-100 font-sans overflow-x-hidden">
+    <div className="min-h-screen bg-white text-slate-900 selection:bg-amber-100 font-sans overflow-x-hidden">
       {/* Navigation */}
-      <header className={`fixed top-0 w-full z-50 transition-all duration-300 ${
-        scrolled ? 'bg-white/80 backdrop-blur-md border-b border-slate-100 py-3' : 'bg-transparent py-5'
+      <header className={`fixed top-0 w-full z-50 transition-all duration-500 ${
+        scrolled ? 'bg-white/90 backdrop-blur-xl border-b border-slate-200/50 py-3 shadow-lg' : 'bg-transparent py-5'
       }`}>
         <div className="max-w-7xl mx-auto px-6 flex justify-between items-center">
-          <Link href="/" className="flex items-center space-x-2 group">
+          <Link href="/" className="group">
             <GeonLogo />
-            <span className="text-sm font-bold tracking-tight text-[#1A1C21]">
-              GEON<span className="font-medium text-slate-400">PAYGUARD</span>
-            </span>
           </Link>
 
-          <nav className="hidden md:flex items-center space-x-6">
+          <nav className="hidden md:flex items-center space-x-8">
             {['Verified Deals', 'Protocol', 'Security', 'Pricing'].map((item) => (
               <a 
                 key={item} 
                 href={`#${item.toLowerCase().replace(' ', '-')}`} 
-                className="text-[10px] font-bold uppercase tracking-widest text-slate-500 hover:text-[#1A1C21] transition-colors relative group"
+                className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 hover:text-slate-900 transition-colors relative group"
               >
                 {item}
-                <span className="absolute -bottom-1 left-0 w-0 h-0.5 bg-[#1A1C21] transition-all group-hover:w-full" />
+                <span className="absolute -bottom-1 left-0 w-0 h-0.5 bg-amber-500 transition-all group-hover:w-full" />
               </a>
             ))}
           </nav>
 
-          <div className="flex items-center space-x-3">
+          <div className="flex items-center space-x-4">
             <Link 
               href="/auth/login" 
-              className="text-[10px] font-bold uppercase tracking-widest text-[#1A1C21] hover:text-slate-600 transition-colors px-3 py-2"
+              className="text-[11px] font-semibold uppercase tracking-wider text-slate-600 hover:text-slate-900 transition-colors px-4 py-2"
             >
               Sign In
             </Link>
             <Link 
               href="/auth/register" 
-              className="px-4 py-2 bg-[#1A1C21] text-white text-[10px] font-bold uppercase tracking-widest rounded-lg hover:bg-slate-800 transition-all shadow-lg hover:shadow-xl shadow-slate-200 hover:scale-105"
+              className="px-5 py-2.5 bg-slate-900 text-white text-[11px] font-semibold uppercase tracking-wider rounded-lg hover:bg-slate-800 transition-all shadow-lg hover:shadow-xl shadow-slate-200 hover:scale-105 flex items-center gap-2"
             >
+              <BadgeCheck size={14} />
               Get Started
             </Link>
           </div>
         </div>
       </header>
 
-      {/* Hero Section with Parallax */}
-      <section ref={heroRef} className="relative pt-36 pb-20 overflow-hidden">
-        {/* Animated Grid Background */}
-        <div className="absolute inset-0 bg-[linear-gradient(to_right,#80808012_1px,transparent_1px),linear-gradient(to_bottom,#80808012_1px,transparent_1px)] bg-[size:40px_40px] [mask-image:radial-gradient(ellipse_60%_50%_at_50%_0%,#000_70%,transparent_100%)]" 
+      {/* Hero Section */}
+      <section ref={heroRef} className="relative pt-36 pb-20 overflow-hidden bg-gradient-to-b from-white to-slate-50">
+        {/* Animated Grid */}
+        <div className="absolute inset-0 bg-[linear-gradient(to_right,#e2e8f0_1px,transparent_1px),linear-gradient(to_bottom,#e2e8f0_1px,transparent_1px)] bg-[size:40px_40px] opacity-30" 
              style={{ transform: `translate(${mousePosition.x}px, ${mousePosition.y}px)` }} />
         
         {/* Floating Elements */}
-        <div className="absolute top-20 left-10 w-64 h-64 bg-slate-50 rounded-full blur-3xl opacity-30 animate-pulse" />
-        <div className="absolute bottom-20 right-10 w-80 h-80 bg-slate-100 rounded-full blur-3xl opacity-30 animate-pulse delay-1000" />
+        <div className="absolute top-20 left-10 w-96 h-96 bg-amber-100 rounded-full blur-3xl opacity-20 animate-pulse" />
+        <div className="absolute bottom-20 right-10 w-80 h-80 bg-slate-200 rounded-full blur-3xl opacity-20 animate-pulse delay-1000" />
 
         <div className="max-w-7xl mx-auto px-6 text-center relative">
-          <div className="inline-flex items-center space-x-2 px-3 py-1 rounded-full bg-slate-50 border border-slate-200 text-slate-600 text-[10px] font-bold uppercase tracking-[0.2em] mb-8 shadow-sm animate-fade-in">
-            <span className="relative flex h-1.5 w-1.5">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-slate-400 opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-slate-600"></span>
-            </span>
+          <div className="inline-flex items-center space-x-2 px-4 py-2 rounded-full bg-amber-50 border border-amber-200 text-amber-700 text-[10px] font-bold uppercase tracking-[0.2em] mb-8 shadow-sm animate-fade-in">
+            <Sparkles size={12} className="text-amber-500" />
             <span>The Gold Standard for Partnership Security</span>
           </div>
           
-          <h1 className="text-5xl md:text-7xl lg:text-8xl font-bold tracking-tight text-[#1A1C21] mb-6 leading-[1.1]">
+          <h1 className="text-5xl md:text-7xl lg:text-8xl font-black tracking-tight text-slate-900 mb-6 leading-[1.1]">
             Secure Your <br />
-            <span className="text-slate-400 relative">
+            <span className="text-amber-500 relative">
               Partnerships.
-              <span className="absolute -bottom-2 left-0 w-full h-1 bg-slate-200 rounded-full" />
+              <span className="absolute -bottom-2 left-0 w-full h-1 bg-amber-200 rounded-full" />
             </span>
           </h1>
           
-          <p className="text-lg text-slate-500 max-w-2xl mx-auto mb-10 leading-relaxed font-medium">
+          <p className="text-lg text-slate-500 max-w-2xl mx-auto mb-10 leading-relaxed">
             Eliminate counterparty risk with our institutional-grade escrow engine. 
             Designed for creators, brands, and agencies who refuse to operate on trust alone.
           </p>
@@ -200,7 +241,7 @@ export default function FinalLandingPage() {
           <div className="flex flex-col sm:flex-row gap-4 justify-center items-center mb-16">
             <Link 
               href="/auth/register" 
-              className="group px-8 py-4 bg-[#1A1C21] text-white font-bold text-xs uppercase tracking-widest rounded-xl hover:bg-slate-800 transition-all flex items-center shadow-xl shadow-slate-200 hover:scale-105"
+              className="group px-8 py-4 bg-slate-900 text-white font-bold text-xs uppercase tracking-widest rounded-xl hover:bg-slate-800 transition-all flex items-center shadow-2xl shadow-slate-200 hover:scale-105"
             >
               Create Your First Secure Partnership
               <ArrowRight size={18} className="ml-2 group-hover:translate-x-2 transition-transform" />
@@ -208,14 +249,16 @@ export default function FinalLandingPage() {
           </div>
 
           {/* Stats Row */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 max-w-4xl mx-auto">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-8 max-w-4xl mx-auto">
             {stats.map((stat, i) => (
               <div key={i} className="text-center group">
-                <div className="flex justify-center mb-2">
-                  <stat.icon size={20} className="text-slate-400 group-hover:text-[#1A1C21] transition-colors" />
+                <div className="flex justify-center mb-3">
+                  <div className="p-3 bg-white rounded-2xl shadow-md border border-slate-100 group-hover:border-amber-200 transition-all">
+                    <stat.icon size={20} className="text-slate-700 group-hover:text-amber-500 transition-colors" />
+                  </div>
                 </div>
-                <div className="text-xl font-bold text-[#1A1C21]">{stat.value}</div>
-                <div className="text-[8px] font-bold uppercase tracking-wider text-slate-400">{stat.label}</div>
+                <div className="text-2xl font-black text-slate-900">{stat.value}</div>
+                <div className="text-[9px] font-semibold uppercase tracking-wider text-slate-400">{stat.label}</div>
               </div>
             ))}
           </div>
@@ -223,102 +266,111 @@ export default function FinalLandingPage() {
       </section>
 
       {/* Trust Badges */}
-      <section className="py-12 border-y border-slate-100 bg-slate-50/50">
+      <section className="py-12 border-y border-slate-200 bg-white">
         <div className="max-w-7xl mx-auto px-6">
-          <p className="text-[8px] font-bold uppercase tracking-[0.3em] text-slate-400 text-center mb-6">Trusted by Industry Leaders</p>
-          <div className="flex flex-wrap justify-center items-center gap-8 opacity-50">
+          <p className="text-[9px] font-semibold uppercase tracking-[0.3em] text-slate-400 text-center mb-8">Trusted by Industry Leaders</p>
+          <div className="flex flex-wrap justify-center items-center gap-12 opacity-40">
             {['VOGUE', 'GQ', 'DIOR', 'CHANEL', 'NIKE', 'ADIDAS'].map((brand) => (
-              <span key={brand} className="text-xs font-bold text-slate-400 tracking-widest">{brand}</span>
+              <span key={brand} className="text-sm font-bold text-slate-500 tracking-widest">{brand}</span>
             ))}
           </div>
         </div>
       </section>
 
-{/* Verified Partnerships Section */}
-<section id="verified-deals" className="py-24 bg-white">
-  <div className="max-w-7xl mx-auto px-6">
-    <div className="grid md:grid-cols-2 gap-16 items-center">
-      <div className="animate-slide-in-left">
-        <span className="text-[10px] font-bold uppercase tracking-[0.3em] text-slate-400 mb-4 block">Discover Verified Partnerships</span>
-        <h2 className="text-4xl font-bold tracking-tight text-[#1A1C21] mb-6">Access Protected <br />High-Value Campaigns.</h2>
-        <p className="text-lg text-slate-500 mb-8 leading-relaxed font-medium">
-          Join an elite ecosystem where influencers connect directly with premium brands. 
-          Every campaign comes with guaranteed payment vaults and professional-grade protection.
-        </p>
-        
-        <div className="space-y-3 mb-8">
-          {[
-            'Direct access to luxury brand campaigns',
-            'Multi-million dollar agency mandates',
-            'Real-time campaign tracking and analytics'
-          ].map((item, i) => (
-            <div key={i} className="flex items-center space-x-3">
-              <CheckCircle size={18} className="text-emerald-500 flex-shrink-0" />
-              <span className="text-sm text-slate-600">{item}</span>
+      {/* Verified Partnerships Section */}
+      <section id="verified-deals" className="py-24 bg-white">
+        <div className="max-w-7xl mx-auto px-6">
+          <div className="grid md:grid-cols-2 gap-16 items-center">
+            <div className="animate-slide-in-left">
+              <span className="text-[10px] font-bold uppercase tracking-[0.3em] text-amber-500 mb-4 block">Discover Verified Partnerships</span>
+              <h2 className="text-4xl font-black tracking-tight text-slate-900 mb-6">Access Protected <br />High-Value Campaigns.</h2>
+              <p className="text-lg text-slate-500 mb-8 leading-relaxed">
+                Join an elite ecosystem where influencers connect directly with premium brands. 
+                Every campaign comes with guaranteed payment vaults and professional-grade protection.
+              </p>
+              
+              <div className="space-y-4 mb-8">
+                {[
+                  'Direct access to luxury brand campaigns',
+                  'Multi-million dollar agency mandates',
+                  'Real-time campaign tracking and analytics'
+                ].map((item, i) => (
+                  <div key={i} className="flex items-center space-x-3">
+                    <div className="p-1 bg-emerald-50 rounded-full">
+                      <CheckCircle size={16} className="text-emerald-500" />
+                    </div>
+                    <span className="text-sm text-slate-600">{item}</span>
+                  </div>
+                ))}
+              </div>
+
+              <Link 
+                href="/auth/register?role=influencer" 
+                className="inline-flex items-center text-amber-500 text-[11px] font-bold uppercase tracking-wider hover:gap-3 transition-all group"
+              >
+                Browse Campaigns <ChevronRight size={14} className="ml-1 group-hover:translate-x-1 transition-transform" />
+              </Link>
             </div>
-          ))}
-        </div>
 
-        <Link 
-          href="/auth/register?role=influencer" 
-          className="inline-flex items-center text-[#1A1C21] text-[10px] font-bold uppercase tracking-wider hover:gap-2 transition-all"
-        >
-          Browse Campaigns <ChevronRight size={14} className="ml-1" />
-        </Link>
-      </div>
-
-      {/* Campaign Cards - Placeholder Content */}
-      <div className="grid grid-cols-2 gap-4 animate-slide-in-right">
-        {[1, 2, 3, 4].map((_, i) => (
-          <div key={i} className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm hover:shadow-lg transition-all hover:scale-105 cursor-pointer group">
-            <div className="text-xs font-bold text-slate-400 mb-2">Brand Partner</div>
-            <div className="text-lg font-bold text-[#1A1C21] mb-1">KES ---</div>
-            <div className="text-[10px] text-slate-400 mb-3">Campaign Type</div>
-            <div className="flex items-center text-[8px] font-bold text-emerald-600">
-              <Zap size={10} className="mr-1" /> Verified
+            {/* Campaign Cards */}
+            <div className="grid grid-cols-2 gap-4 animate-slide-in-right">
+              {[
+                { brand: 'LOUIS VUITTON', value: 'KES 150K', type: 'Luxury Fashion' },
+                { brand: 'DIOR BEAUTY', value: 'KES 85K', type: 'Beauty Campaign' },
+                { brand: 'CARTIER', value: 'KES 250K', type: 'Jewelry Launch' },
+                { brand: 'TIFFANY & CO.', value: 'KES 120K', type: 'Brand Ambassador' }
+              ].map((campaign, i) => (
+                <div key={i} className="group bg-white p-6 rounded-xl border border-slate-200 shadow-sm hover:shadow-xl transition-all hover:scale-105 cursor-pointer">
+                  <div className="text-[9px] font-bold text-amber-500 mb-2 tracking-wider">{campaign.brand}</div>
+                  <div className="text-xl font-black text-slate-900 mb-1">{campaign.value}</div>
+                  <div className="text-[9px] text-slate-400 mb-3 font-medium">{campaign.type}</div>
+                  <div className="flex items-center text-[8px] font-bold text-emerald-600">
+                    <BadgeCheck size={10} className="mr-1" /> Verified Partner
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
-        ))}
-      </div>
-    </div>
 
-    {/* Note about real campaigns */}
-    <p className="text-center text-[10px] text-slate-400 mt-8">
-      *Actual campaign details available after verification
-    </p>
-  </div>
-</section>
- 
-      {/* Core Infrastructure with Enhanced Cards */}
+          <p className="text-center text-[10px] text-slate-400 mt-8">
+            *Actual campaign details available after verification
+          </p>
+        </div>
+      </section>
+
+      {/* Core Infrastructure */}
       <section className="py-24 bg-slate-50">
         <div className="max-w-7xl mx-auto px-6">
           <div className="text-center mb-16">
-            <span className="text-[10px] font-bold uppercase tracking-[0.3em] text-slate-400 mb-4 block">Built for Excellence</span>
-            <h2 className="text-4xl font-bold tracking-tight text-[#1A1C21] mb-4">Institutional-Grade Infrastructure</h2>
+            <span className="text-[10px] font-bold uppercase tracking-[0.3em] text-amber-500 mb-4 block">Built for Excellence</span>
+            <h2 className="text-4xl font-black tracking-tight text-slate-900 mb-4">Institutional-Grade Infrastructure</h2>
             <p className="text-lg text-slate-500 max-w-2xl mx-auto">Every feature designed to eliminate friction and build trust between partners.</p>
           </div>
 
           <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
             {coreInfrastructure.map((item, i) => (
-              <div key={i} className="group bg-white p-6 rounded-2xl border border-slate-200 hover:border-[#1A1C21] hover:shadow-xl transition-all duration-300">
-                <div className="w-12 h-12 bg-slate-50 rounded-xl flex items-center justify-center text-[#1A1C21] mb-5 group-hover:bg-[#1A1C21] group-hover:text-white transition-all">
-                  <item.icon size={22} />
+              <div key={i} className="group bg-white p-6 rounded-2xl border border-slate-200 hover:border-amber-200 hover:shadow-2xl transition-all duration-300">
+                <div className="w-14 h-14 bg-amber-50 rounded-xl flex items-center justify-center text-slate-900 mb-5 group-hover:bg-amber-500 group-hover:text-white transition-all">
+                  <item.icon size={24} />
                 </div>
                 <h3 className="text-base font-bold mb-2">{item.title}</h3>
                 <p className="text-xs text-slate-500 leading-relaxed mb-4">{item.description}</p>
-                <div className="text-[8px] font-bold text-emerald-600 uppercase tracking-wider">{item.stats}</div>
+                <div className="text-[9px] font-bold text-emerald-600 uppercase tracking-wider flex items-center gap-1">
+                  <BadgeCheck size={12} />
+                  {item.stats}
+                </div>
               </div>
             ))}
           </div>
         </div>
       </section>
 
-      {/* Testimonials Carousel */}
+      {/* Testimonials */}
       <section className="py-24 bg-white">
         <div className="max-w-7xl mx-auto px-6">
           <div className="text-center mb-16">
-            <span className="text-[10px] font-bold uppercase tracking-[0.3em] text-slate-400 mb-4 block">Trusted by Creators & Brands</span>
-            <h2 className="text-4xl font-bold tracking-tight text-[#1A1C21]">What Our Partners Say</h2>
+            <span className="text-[10px] font-bold uppercase tracking-[0.3em] text-amber-500 mb-4 block">Trusted by Creators & Brands</span>
+            <h2 className="text-4xl font-black tracking-tight text-slate-900">What Our Partners Say</h2>
           </div>
 
           <div className="relative max-w-3xl mx-auto">
@@ -332,14 +384,16 @@ export default function FinalLandingPage() {
                     <div className="bg-slate-50 p-8 rounded-2xl border border-slate-200">
                       <div className="flex items-center mb-4">
                         {[...Array(testimonial.rating)].map((_, i) => (
-                          <Star key={i} size={16} className="text-yellow-400 fill-current" />
+                          <Star key={i} size={16} className="text-amber-400 fill-current" />
                         ))}
                       </div>
                       <p className="text-lg text-slate-700 mb-6 italic">"{testimonial.content}"</p>
                       <div className="flex items-center">
-                        <div className="w-12 h-12 bg-slate-300 rounded-full mr-4" />
+                        <div className="w-12 h-12 bg-gradient-to-br from-amber-200 to-amber-300 rounded-full mr-4 flex items-center justify-center">
+                          <span className="text-slate-900 font-bold">{testimonial.name[0]}</span>
+                        </div>
                         <div>
-                          <p className="font-bold text-sm">{testimonial.name}</p>
+                          <p className="font-bold text-sm text-slate-900">{testimonial.name}</p>
                           <p className="text-xs text-slate-400">{testimonial.role}</p>
                         </div>
                       </div>
@@ -349,14 +403,13 @@ export default function FinalLandingPage() {
               </div>
             </div>
 
-            {/* Navigation Dots */}
             <div className="flex justify-center space-x-2 mt-6">
               {testimonials.map((_, i) => (
                 <button
                   key={i}
                   onClick={() => setActiveTestimonial(i)}
-                  className={`w-2 h-2 rounded-full transition-all ${
-                    i === activeTestimonial ? 'bg-[#1A1C21] w-4' : 'bg-slate-300'
+                  className={`h-2 rounded-full transition-all ${
+                    i === activeTestimonial ? 'w-6 bg-amber-500' : 'w-2 bg-slate-300'
                   }`}
                 />
               ))}
@@ -365,18 +418,17 @@ export default function FinalLandingPage() {
         </div>
       </section>
 
-      {/* Settlement Protocol with Timeline */}
-      <section id="protocol" className="py-24 bg-[#1A1C21] text-white mx-6 rounded-[40px] relative overflow-hidden">
+      {/* Settlement Protocol */}
+      <section id="protocol" className="py-24 bg-slate-900 text-white mx-6 rounded-[40px] relative overflow-hidden">
         <div className="absolute inset-0 bg-[linear-gradient(to_right,#ffffff05_1px,transparent_1px),linear-gradient(to_bottom,#ffffff05_1px,transparent_1px)] bg-[size:40px_40px]" />
         
         <div className="max-w-7xl mx-auto px-8 relative z-10">
           <div className="text-center mb-16">
-            <span className="text-[10px] font-bold uppercase tracking-[0.4em] text-slate-500 mb-4 block">The Settlement Protocol</span>
-            <h2 className="text-4xl font-bold tracking-tight">Three Stages of Trust</h2>
+            <span className="text-[10px] font-bold uppercase tracking-[0.4em] text-amber-400/60 mb-4 block">The Settlement Protocol</span>
+            <h2 className="text-4xl font-black tracking-tight text-white">Three Stages of Trust</h2>
           </div>
 
           <div className="grid md:grid-cols-3 gap-6 relative">
-            {/* Connecting Line */}
             <div className="hidden md:block absolute top-1/2 left-0 w-full h-0.5 bg-white/10 -translate-y-1/2" />
             
             {[
@@ -385,12 +437,12 @@ export default function FinalLandingPage() {
               { n: '03', t: 'Disbursement', d: 'Once validated or the timer expires, assets are instantly disbursed to the seller\'s account.', icon: CheckCircle }
             ].map((step, i) => (
               <div key={i} className="relative group">
-                <div className="absolute -inset-0.5 bg-gradient-to-r from-white/20 to-transparent rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity blur" />
-                <div className="relative bg-white/5 p-8 rounded-2xl border border-white/10 hover:border-white/30 transition-all">
-                  <div className="text-4xl font-bold text-white/10 mb-4 group-hover:text-white/30 transition-colors">{step.n}</div>
-                  <step.icon size={24} className="text-white/70 mb-4" />
-                  <h4 className="text-lg font-bold mb-3">{step.t}</h4>
-                  <p className="text-slate-400 leading-relaxed text-xs">{step.d}</p>
+                <div className="absolute -inset-0.5 bg-gradient-to-r from-amber-500/20 to-transparent rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity blur" />
+                <div className="relative bg-white/5 p-8 rounded-2xl border border-white/10 hover:border-amber-500/30 transition-all">
+                  <div className="text-5xl font-black text-white/10 mb-4 group-hover:text-amber-500/30 transition-colors">{step.n}</div>
+                  <step.icon size={28} className="text-amber-400/80 mb-4" />
+                  <h4 className="text-xl font-bold mb-3">{step.t}</h4>
+                  <p className="text-slate-400 leading-relaxed text-sm">{step.d}</p>
                 </div>
               </div>
             ))}
@@ -401,10 +453,10 @@ export default function FinalLandingPage() {
       {/* CTA Section */}
       <section className="py-24 bg-white">
         <div className="max-w-7xl mx-auto px-6">
-          <div className="bg-slate-50 rounded-[40px] p-16 text-center relative overflow-hidden">
-            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent -translate-x-full hover:translate-x-full transition-transform duration-1500" />
+          <div className="bg-gradient-to-br from-amber-50 to-white rounded-[40px] p-16 text-center relative overflow-hidden border border-amber-100">
+            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-amber-200/10 to-transparent -translate-x-full hover:translate-x-full transition-transform duration-1500" />
             
-            <h2 className="text-4xl font-bold tracking-tight text-[#1A1C21] mb-4">
+            <h2 className="text-4xl font-black tracking-tight text-slate-900 mb-4">
               Ready to Secure Your Partnerships?
             </h2>
             <p className="text-lg text-slate-500 max-w-2xl mx-auto mb-8">
@@ -414,40 +466,30 @@ export default function FinalLandingPage() {
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
               <Link 
                 href="/auth/register?role=influencer" 
-                className="group px-8 py-4 bg-white border border-slate-200 text-[#1A1C21] font-bold text-xs uppercase tracking-widest rounded-xl hover:border-[#1A1C21] transition-all flex items-center justify-center"
+                className="group px-8 py-4 bg-white border-2 border-slate-200 text-slate-900 font-bold text-xs uppercase tracking-widest rounded-xl hover:border-amber-500 transition-all flex items-center justify-center shadow-lg hover:shadow-xl"
               >
+                <Users size={16} className="mr-2" />
                 Join as Influencer
-                <Users size={16} className="ml-2" />
               </Link>
               <Link 
                 href="/auth/register?role=business" 
-                className="group px-8 py-4 bg-[#1A1C21] text-white font-bold text-xs uppercase tracking-widest rounded-xl hover:bg-slate-800 transition-all flex items-center justify-center"
+                className="group px-8 py-4 bg-slate-900 text-white font-bold text-xs uppercase tracking-widest rounded-xl hover:bg-slate-800 transition-all flex items-center justify-center shadow-lg hover:shadow-xl"
               >
+                <Building2 size={16} className="mr-2" />
                 Join as Business
-                <Briefcase size={16} className="ml-2" />
               </Link>
             </div>
           </div>
         </div>
       </section>
 
-      {/* Enhanced Footer */}
-      <footer className="py-16 bg-white border-t border-slate-100">
+      {/* Footer */}
+      <footer className="py-16 bg-slate-50 border-t border-slate-200">
         <div className="max-w-7xl mx-auto px-6">
           <div className="grid md:grid-cols-4 gap-8 mb-12">
             <div className="col-span-2">
-              <div className="flex items-center space-x-2 mb-4">
-                <div className="w-8 h-8 bg-[#1A1C21] flex items-center justify-center rounded-lg relative">
-                  {/* Custom GeonPayGuard Logo */}
-                  <div className="absolute inset-0 border-2 border-white/20 rounded-lg"></div>
-                  <div className="absolute inset-1 border border-white/10 rounded-md"></div>
-                  <span className="relative text-white font-bold text-lg">G</span>
-                  <div className="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 bg-emerald-400 rounded-full"></div>
-                  <div className="absolute -bottom-0.5 -left-0.5 w-1.5 h-1.5 bg-emerald-400 rounded-full"></div>
-                </div>
-                <span className="text-sm font-bold tracking-tight text-[#1A1C21]">GEONPAYGUARD</span>
-              </div>
-              <p className="text-xs text-slate-400 max-w-sm leading-relaxed">
+              <GeonLogoLight />
+              <p className="text-xs text-slate-400 max-w-sm leading-relaxed mt-4">
                 Institutional-grade security and professional arbitration for modern partnerships. 
                 Trust infrastructure for the creator economy.
               </p>
@@ -455,10 +497,10 @@ export default function FinalLandingPage() {
             
             <div>
               <h4 className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-4">Product</h4>
-              <ul className="space-y-2">
+              <ul className="space-y-3">
                 {['Features', 'Security', 'Pricing', 'API'].map((item) => (
                   <li key={item}>
-                    <a href="#" className="text-xs text-slate-500 hover:text-[#1A1C21] transition-colors">{item}</a>
+                    <a href="#" className="text-xs text-slate-500 hover:text-slate-900 transition-colors">{item}</a>
                   </li>
                 ))}
               </ul>
@@ -466,48 +508,39 @@ export default function FinalLandingPage() {
             
             <div>
               <h4 className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-4">Company</h4>
-              <ul className="space-y-2">
+              <ul className="space-y-3">
                 {['About', 'Blog', 'Careers', 'Contact'].map((item) => (
                   <li key={item}>
-                    <a href="#" className="text-xs text-slate-500 hover:text-[#1A1C21] transition-colors">{item}</a>
+                    <a href="#" className="text-xs text-slate-500 hover:text-slate-900 transition-colors">{item}</a>
                   </li>
                 ))}
               </ul>
             </div>
           </div>
 
-          <div className="flex flex-col md:flex-row justify-between items-center pt-8 border-t border-slate-100">
+          <div className="flex flex-col md:flex-row justify-between items-center pt-8 border-t border-slate-200">
             <div className="flex space-x-4 mb-4 md:mb-0">
-              <a href="#" className="text-slate-400 hover:text-[#1A1C21] transition-colors">
-                <Twitter size={16} />
-              </a>
-              <a href="#" className="text-slate-400 hover:text-[#1A1C21] transition-colors">
-                <Linkedin size={16} />
-              </a>
-              <a href="#" className="text-slate-400 hover:text-[#1A1C21] transition-colors">
-                <Github size={16} />
-              </a>
-              <a href="#" className="text-slate-400 hover:text-[#1A1C21] transition-colors">
-                <Mail size={16} />
-              </a>
+              {[Twitter, Linkedin, Github, Mail].map((Icon, i) => (
+                <a key={i} href="#" className="p-2 bg-white rounded-full border border-slate-200 text-slate-400 hover:text-slate-900 hover:border-amber-500 transition-all">
+                  <Icon size={14} />
+                </a>
+              ))}
             </div>
             
-            <div className="flex gap-6 text-[9px] font-bold uppercase tracking-widest text-slate-300">
-              <Link href="/terms" className="hover:text-[#1A1C21] transition-colors">Terms</Link>
-              <Link href="/privacy" className="hover:text-[#1A1C21] transition-colors">Privacy</Link>
-              <span className="hover:text-[#1A1C21] transition-colors cursor-pointer">Security</span>
-              <span className="hover:text-[#1A1C21] transition-colors cursor-pointer">Cookies</span>
+            <div className="flex gap-8 text-[9px] font-bold uppercase tracking-widest text-slate-400">
+              <Link href="/terms" className="hover:text-slate-900 transition-colors">Terms</Link>
+              <Link href="/privacy" className="hover:text-slate-900 transition-colors">Privacy</Link>
+              <span className="hover:text-slate-900 transition-colors cursor-pointer">Security</span>
             </div>
           </div>
           
-          <p className="text-center text-[8px] text-slate-300 mt-8">
+          <p className="text-center text-[8px] text-slate-400 mt-8">
             © {new Date().getFullYear()} GEONPAYGUARD. All rights reserved. 
             Independent escrow facilitator. Funds held via regulated payment partners.
           </p>
         </div>
       </footer>
 
-      {/* Add custom animations */}
       <style jsx>{`
         @keyframes fade-in {
           from { opacity: 0; transform: translateY(10px); }
@@ -534,6 +567,15 @@ export default function FinalLandingPage() {
         
         .animate-slide-in-right {
           animation: slide-in-right 0.8s ease-out;
+        }
+        
+        .animate-spin-slow {
+          animation: spin 8s linear infinite;
+        }
+        
+        @keyframes spin {
+          from { transform: rotate(0deg); }
+          to { transform: rotate(360deg); }
         }
         
         .transition-duration-1500 {

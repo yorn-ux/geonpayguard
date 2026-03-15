@@ -2321,29 +2321,29 @@ async def get_revenue_volume(
         else:
             return {"monthly": []}
 
-# ==================== INTASEND METRICS ENDPOINT ====================
+# ==================== PESAPAL METRICS ENDPOINT ====================
 
-@router.get("/intasend/metrics")
-async def get_intasend_metrics(
+@router.get("/pesapal/metrics")
+async def get_pesapal_metrics(
     current_user: dict = Depends(verify_admin),
     db: Session = Depends(get_db)
 ):
-    """Get IntaSend metrics for admin dashboard"""
+    """Get PesaPal metrics for admin dashboard"""
     try:
         # Try to get real metrics from transactions
         if WALLET_MODELS_AVAILABLE:
-            # Get all Intasend transactions
+            # Get all PesaPal transactions
             total_transactions = db.execute(
                 select(func.count())
                 .select_from(Transaction)
-                .where(Transaction.provider == "intasend")
+                .where(Transaction.provider == "pesapal")
             ).scalar() or 0
             
             successful = db.execute(
                 select(func.count())
                 .select_from(Transaction)
                 .where(
-                    Transaction.provider == "intasend",
+                    Transaction.provider == "pesapal",
                     Transaction.status == "completed"
                 )
             ).scalar() or 0
@@ -2352,7 +2352,7 @@ async def get_intasend_metrics(
                 select(func.count())
                 .select_from(Transaction)
                 .where(
-                    Transaction.provider == "intasend",
+                    Transaction.provider == "pesapal",
                     Transaction.status == "failed"
                 )
             ).scalar() or 0
@@ -2365,7 +2365,7 @@ async def get_intasend_metrics(
                 select(func.sum(Transaction.amount))
                 .select_from(Transaction)
                 .where(
-                    Transaction.provider == "intasend",
+                    Transaction.provider == "pesapal",
                     Transaction.status == "completed"
                 )
             ).scalar() or 0
@@ -2389,7 +2389,7 @@ async def get_intasend_metrics(
             "total_settled": 0
         }
     except Exception as e:
-        logging.error(f"Failed to get IntaSend metrics: {str(e)}")
+        logging.error(f"Failed to get PesaPal metrics: {str(e)}")
         # Return empty data on error
         return {
             "total_transactions": 0,
@@ -2399,3 +2399,5 @@ async def get_intasend_metrics(
             "avg_time": "0s",
             "total_settled": 0
         }
+    
+    # End of pesapal metrics endpoint

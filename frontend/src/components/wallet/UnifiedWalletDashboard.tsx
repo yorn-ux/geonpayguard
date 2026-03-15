@@ -64,7 +64,7 @@ interface Transaction {
   currency: string;
   amount: string | number;
   created_at: string;
-  provider?: 'intasend' | 'internal';
+  provider?: 'pesapal' | 'internal';
   provider_ref?: string;
 }
 
@@ -85,7 +85,7 @@ interface RevenueStats {
   daily_volume?: number[];
   weekly_volume?: number[];
   monthly_volume?: number[];
-  intasend_fees?: number;
+  pesapal_fees?: number;
   platform_fees?: number;
 }
 
@@ -94,7 +94,7 @@ interface WalletBalance {
   balance_usdt: number;
   pending_kes: number;
   pending_usdt: number;
-  intasend_balance?: number;
+  pesapal_balance?: number;
   last_sync?: string;
 }
 
@@ -305,7 +305,7 @@ function PersonalTab({ identity }: { identity: UserIdentity }) {
         <ActionBtn 
           icon={ArrowDownLeft} 
           label="Deposit Funds" 
-          sub="Via M-PESA (IntaSend)" 
+          sub="Via M-PESA (PesaPal)" 
           onClick={() => setIsDepositOpen(true)} 
         />
         <ActionBtn 
@@ -325,7 +325,7 @@ function PersonalTab({ identity }: { identity: UserIdentity }) {
         <div className="mt-4 p-3 bg-blue-50 rounded-lg border border-blue-100">
           <div className="flex items-center gap-2 text-xs text-blue-700">
             <ShieldCheck size={14} />
-            <span>Payments powered by IntaSend</span>
+            <span>Payments powered by PesaPal</span>
           </div>
         </div>
       </div>
@@ -369,7 +369,7 @@ function BusinessBillingTab() {
     pending_usdt: number;
     transactions: Transaction[];
     isLocked: boolean;
-    intasend_balance?: number;
+    pesapal_balance?: number;
   }>({ 
     balance_kes: 0, 
     balance_usdt: 0, 
@@ -388,7 +388,7 @@ function BusinessBillingTab() {
       const [balRes, histRes, statsRes] = await Promise.all([
         authenticatedFetch('/api/v1/wallet/balance'),
         authenticatedFetch('/api/v1/wallet/history?limit=50'),
-        authenticatedFetch('/api/v1/wallet/intasend/stats')
+        authenticatedFetch('/api/v1/wallet/pesapal/stats')
       ]);
       
       if (balRes.ok && histRes.ok) {
@@ -403,7 +403,7 @@ function BusinessBillingTab() {
             pending_usdt: balance.pending_usdt ?? 0,
             transactions: Array.isArray(history) ? history : [], 
             isLocked: balance.is_locked ?? false,
-            intasend_balance: stats?.balance ?? 0
+            pesapal_balance: stats?.balance ?? 0
           });
       }
     } catch (err) { console.error(err); } finally { setLoading(false); setSyncing(false); }
@@ -428,7 +428,7 @@ function BusinessBillingTab() {
                 onClick={() => setShowAddFunds(true)} 
                 className="mt-4 bg-white/20 hover:bg-white/30 text-white px-4 py-2 rounded-lg text-xs font-medium flex items-center gap-2 transition-colors backdrop-blur-sm"
               >
-                <Plus size={14}/> Top Up via IntaSend
+                <Plus size={14}/> Top Up via PesaPal
               </button>
             </div>
             <div className="absolute top-0 right-0 text-white/10">
@@ -454,17 +454,17 @@ function BusinessBillingTab() {
         <div className="bg-gray-50 rounded-xl border border-gray-100 p-6 shadow-sm">
           <h4 className="text-sm font-medium text-gray-900 flex items-center gap-2 mb-4">
             <Activity size={16} className="text-gray-400"/> 
-            IntaSend Status
+            PesaPal Status
           </h4>
           <div className="space-y-3">
             <div className="flex justify-between text-xs">
               <span className="text-gray-400">Provider</span>
               <span className="text-emerald-600 font-medium">ACTIVE</span>
             </div>
-            {data.intasend_balance !== undefined && (
+            {data.pesapal_balance !== undefined && (
               <div className="flex justify-between text-xs">
-                <span className="text-gray-400">IntaSend Balance</span>
-                <span className="text-gray-900">KES {data.intasend_balance.toLocaleString()}</span>
+                <span className="text-gray-400">PesaPal Balance</span>
+                <span className="text-gray-900">KES {data.pesapal_balance?.toLocaleString()}</span>
               </div>
             )}
             <div className="flex justify-between text-xs">
@@ -477,7 +477,7 @@ function BusinessBillingTab() {
             className="w-full mt-4 py-2 bg-white border border-gray-200 rounded-lg text-xs font-medium hover:bg-gray-50 transition-all flex items-center justify-center gap-2"
           >
             <RefreshCw size={12} className={syncing ? 'animate-spin' : ''}/>
-            Sync with IntaSend
+            Sync with PesaPal
           </button>
         </div>
       </div>
@@ -487,7 +487,7 @@ function BusinessBillingTab() {
           <span className="text-sm font-medium text-gray-900">Transaction Audit Ledger</span>
           <div className="flex items-center gap-2">
             <ShieldCheck size={16} className="text-emerald-500" />
-            <span className="text-[10px] text-gray-400">IntaSend Verified</span>
+            <span className="text-[10px] text-gray-400">PesaPal Verified</span>
           </div>
         </div>
         
@@ -509,7 +509,7 @@ function BusinessBillingTab() {
                     <div className="text-sm font-medium text-gray-900">{tx.tx_ref || tx.id.slice(0,8)}</div>
                     <div className="text-xs text-gray-400">{new Date(tx.created_at).toLocaleString()}</div>
                     {tx.provider_ref && (
-                      <div className="text-[10px] text-gray-300">IntaSend: {tx.provider_ref.slice(0,8)}</div>
+                      <div className="text-[10px] text-gray-300">PesaPal: {tx.provider_ref.slice(0,8)}</div>
                     )}
                   </td>
                   <td className="px-6 py-4">
@@ -560,45 +560,45 @@ function RevenueTabContent({ identity }: { identity: UserIdentity }) {
     total_kes: 0, 
     fees_kes: 0, 
     net_kes: 0,
-    intasend_fees: 0,
+    pesapal_fees: 0,
     platform_fees: 0 
   });
   const [loading, setLoading] = useState(true);
   const [isWithdrawOpen, setIsWithdrawOpen] = useState(false);
   const [timeframe, setTimeframe] = useState<'daily' | 'weekly' | 'monthly'>('monthly');
-  const [intasendMetrics, setIntasendMetrics] = useState<any>(null);
+  const [pesapalMetrics, setPesaPalMetrics] = useState<any>(null);
 
   const fetchRevenueData = useCallback(async () => {
     try {
-      const [metRes, balRes, volRes, intasendRes] = await Promise.all([
+      const [metRes, balRes, volRes, pesapalRes] = await Promise.all([
         authenticatedFetch('/api/v1/wallet/withdrawals/metrics'),
         authenticatedFetch('/api/v1/wallet/balance'),
         authenticatedFetch(`/api/v1/admin/revenue/volume?timeframe=${timeframe}`),
-        authenticatedFetch('/api/v1/admin/intasend/metrics')
+        authenticatedFetch('/api/v1/admin/pesapal/metrics')
       ]);
       
       if (metRes.ok && balRes.ok) {
         const m = await metRes.json();
         const b = await balRes.json();
         const v = volRes.ok ? await volRes.json() : null;
-        const i = intasendRes.ok ? await intasendRes.json() : null;
+        const p = pesapalRes.ok ? await pesapalRes.json() : null;
         
-        // IntaSend typically charges ~1.5% for payments
-        const intasendFeeRate = 0.015;
+        // PesaPal typically charges ~1.5% for payments
+        const pesapalFeeRate = 0.015;
         const platformFeeRate = 0.005; // Our platform fee
         
         setStats({ 
           total_kes: m.totalAmount || 0, 
-          fees_kes: (m.totalAmount || 0) * (intasendFeeRate + platformFeeRate), 
+          fees_kes: (m.totalAmount || 0) * (pesapalFeeRate + platformFeeRate), 
           net_kes: b.balance_kes ?? b.kes_balance ?? 0,
-          intasend_fees: (m.totalAmount || 0) * intasendFeeRate,
+          pesapal_fees: (m.totalAmount || 0) * pesapalFeeRate,
           platform_fees: (m.totalAmount || 0) * platformFeeRate,
           daily_volume: v?.daily || [],
           weekly_volume: v?.weekly || [],
           monthly_volume: v?.monthly || []
         });
         
-        setIntasendMetrics(i);
+        setPesaPalMetrics(p);
       }
     } catch (err) {
       console.error("Failed to load revenue stats:", err);
@@ -617,7 +617,7 @@ function RevenueTabContent({ identity }: { identity: UserIdentity }) {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h2 className="text-lg font-semibold text-gray-900">Platform Revenue</h2>
-          <p className="text-sm text-gray-500">Monitor platform earnings and IntaSend fees</p>
+          <p className="text-sm text-gray-500">Monitor platform earnings and PesaPal fees</p>
         </div>
         
         <div className="flex items-center gap-3">
@@ -649,8 +649,8 @@ function RevenueTabContent({ identity }: { identity: UserIdentity }) {
           className="border-l-4 border-purple-500"
         />
         <RevenueStatCard 
-          label="IntaSend Fees" 
-          value={`KES ${(stats.intasend_fees || 0).toLocaleString()}`} 
+          label="PesaPal Fees" 
+          value={`KES ${(stats.pesapal_fees || 0).toLocaleString()}`} 
           icon={ExternalLink} 
           loading={loading}
         />
@@ -688,26 +688,26 @@ function RevenueTabContent({ identity }: { identity: UserIdentity }) {
         )}
       </div>
 
-      {/* IntaSend Metrics */}
-      {intasendMetrics && (
+      {/* PesaPal Metrics */}
+      {pesapalMetrics && (
         <div className="bg-purple-50 rounded-xl border border-purple-100 p-6">
-          <h3 className="text-sm font-medium text-purple-900 mb-4">IntaSend Payment Metrics</h3>
+          <h3 className="text-sm font-medium text-purple-900 mb-4">PesaPal Payment Metrics</h3>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <div>
               <p className="text-xs text-purple-600">Total Transactions</p>
-              <p className="text-xl font-semibold text-purple-900">{intasendMetrics.total_transactions || 0}</p>
+              <p className="text-xl font-semibold text-purple-900">{pesapalMetrics.total_transactions || 0}</p>
             </div>
             <div>
               <p className="text-xs text-purple-600">Success Rate</p>
-              <p className="text-xl font-semibold text-purple-900">{intasendMetrics.success_rate || 98}%</p>
+              <p className="text-xl font-semibold text-purple-900">{pesapalMetrics.success_rate || 98}%</p>
             </div>
             <div>
               <p className="text-xs text-purple-600">Avg. Processing Time</p>
-              <p className="text-xl font-semibold text-purple-900">{intasendMetrics.avg_time || '2.5s'}</p>
+              <p className="text-xl font-semibold text-purple-900">{pesapalMetrics.avg_time || '2.5s'}</p>
             </div>
             <div>
               <p className="text-xs text-purple-600">Settlements</p>
-              <p className="text-xl font-semibold text-purple-900">KES {intasendMetrics.total_settled || 0}</p>
+              <p className="text-xl font-semibold text-purple-900">KES {pesapalMetrics.total_settled || 0}</p>
             </div>
           </div>
         </div>
@@ -817,8 +817,8 @@ function RecentActivityList() {
                             <p className="text-xs text-gray-400">
                               {new Date(tx.created_at).toLocaleDateString()}
                             </p>
-                            {tx.provider === 'intasend' && (
-                              <span className="text-[10px] text-blue-400">via IntaSend</span>
+                            {tx.provider === 'pesapal' && (
+                              <span className="text-[10px] text-blue-400">via PesaPal</span>
                             )}
                         </div>
                     </div>
