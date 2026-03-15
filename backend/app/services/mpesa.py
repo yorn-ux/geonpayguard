@@ -19,18 +19,17 @@ logger = logging.getLogger(__name__)
 MPESA_ENVIRONMENT = os.getenv("MPESA_ENVIRONMENT", "sandbox")  # sandbox or production
 MPESA_BASE_URL = "https://sandbox.safaricom.co.ke" if MPESA_ENVIRONMENT == "sandbox" else "https://api.safaricom.co.ke"
 
-# M-Pesa Credentials
-MPESA_CONSUMER_KEY = os.getenv("MPESA_CONSUMER_KEY", "")
-MPESA_CONSUMER_SECRET = os.getenv("MPESA_CONSUMER_SECRET", "")
-MPESA_SHORTCODE = os.getenv("MPESA_SHORTCODE", "")
-MPESA_INITIATOR_NAME = os.getenv("MPESA_INITIATOR_NAME", "")
-MPESA_INITIATOR_PASSWORD = os.getenv("MPESA_INITIATOR_PASSWORD", "")
+# M-Pesa Credentials - Use environment variables or fall back to provided credentials
+MPESA_CONSUMER_KEY = os.getenv("MPESA_CONSUMER_KEY", "eFd1HfCrZ12aGQBXiO79aaLL6OyAUb8qVgbc57XabVXThksn")
+MPESA_CONSUMER_SECRET = os.getenv("MPESA_CONSUMER_SECRET", "lSVsuX0jGafFc4k6GkZnFAbPGy1AO1d3MsJ7QdArnPc4QAHootES2oylzvtWDJog")
+MPESA_SHORTCODE = os.getenv("MPESA_SHORTCODE", "600991")
+MPESA_PASSKEY = os.getenv("MPESA_PASSKEY", "Password123!")
+MPESA_INITIATOR_NAME = os.getenv("MPESA_INITIATOR_NAME", "testapi")
+MPESA_INITIATOR_PASSWORD = os.getenv("MPESA_INITIATOR_PASSWORD", "kStrzj9$Guk$W7B")
+MPESA_SECURITY_CREDENTIAL = os.getenv("MPESA_SECURITY_CREDENTIAL", "loOFYgAWhQt0PIireZnntfMMmc3LlCH3gFUnEdiKTTfvoFyyW0dWvVh+ReuTIkm8NlTHGV+JylzU8xOy9AJ/JhVyivazmN6RdZeP5AtvL4lVqJq6ubzdiTI9LnbufyB8osCOTVM4jXE7jTskyzs4G34tPEAQV3ZYyzSCW8V5w7pEuWl9Zeh29Wq5ORE6mAdNm453Tvy4qO26AWKbFc6nZnSBuoKZgHjI/SvDia1GhlqUKRV7eO2BxrB2lMekkqFlS56xF4TBVQQ05Cr1Gaud0wSdJwJ3kRhhQNoF3CkqiOO/F8CqFSnWWVQAP6UdJuylGoK1s/iKm9JsH+YAPcGqQA==")
 MPESA_CALLBACK_URL = os.getenv("MPESA_CALLBACK_URL", "")
 MPESA_STK_CALLBACK_URL = os.getenv("MPESA_STK_CALLBACK_URL", "")
 MPESA_B2C_CALLBACK_URL = os.getenv("MPESA_B2C_CALLBACK_URL", "")
-
-# Security credential (encrypted password) - can be set directly or generated
-MPESA_SECURITY_CREDENTIAL = os.getenv("MPESA_SECURITY_CREDENTIAL", "")
 
 # Token cache
 _mpesa_token_cache = {
@@ -82,29 +81,11 @@ def format_phone_number(phone: str) -> str:
 
 
 def generate_security_credential() -> str:
-    """Generate security credential from initiator password."""
+    """Get security credential for B2C payments."""
     if MPESA_SECURITY_CREDENTIAL:
         return MPESA_SECURITY_CREDENTIAL
     
-    if not MPESA_INITIATOR_PASSWORD:
-        raise HTTPException(status_code=500, detail="M-Pesa initiator password not configured")
-    
-    # For sandbox, we use a predefined encrypted password
-    # In production, you'd use M-Pesa's tool to generate this
-    import subprocess
-    try:
-        # This is a simplified version - in production use proper encryption
-        # The security credential is the initiator password base64 encoded
-        # For sandbox testing, use the default password
-        if MPESA_ENVIRONMENT == "sandbox":
-            # Default sandbox password
-            return "empower+254+app+george+254+george123"
-        else:
-            # Production - would need proper encryption
-            return MPESA_INITIATOR_PASSWORD
-    except Exception as e:
-        logger.error(f"Error generating security credential: {e}")
-        raise HTTPException(status_code=500, detail="Failed to generate security credential")
+    raise HTTPException(status_code=500, detail="M-Pesa security credential not configured")
 
 
 async def get_mpesa_token() -> str:
@@ -189,10 +170,7 @@ async def stk_push_request(
         url = f"{MPESA_BASE_URL}/mpesa/stkpush/v1/processrequest"
         
         # Create password (Base64 of Shortcode + Passkey + Timestamp)
-        # Using a predefined passkey for sandbox
-        passkey = "bfb279f9aa9b250cf98f1d8d614db3d1c13ed1c0e73e0c0c5e2d0e0c1e0d1c0e"  # Sandbox passkey
-        if MPESA_ENVIRONMENT == "production":
-            passkey = os.getenv("MPESA_PASSKEY", passkey)
+        passkey = MPESA_PASSKEY  # Use configured passkey
         
         password_string = f"{MPESA_SHORTCODE}{passkey}{timestamp}"
         password = base64.b64encode(password_string.encode()).decode()
