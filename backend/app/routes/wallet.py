@@ -14,8 +14,8 @@ from ..database import get_db
 from ..models.wallet import Wallet, Transaction, TransactionType, TransactionStatus, PlatformRevenue
 from .auth import get_current_user
 
-# PesaPal API Configuration
-PESAPAL_BASE_URL = os.getenv("PESAPAL_BASE_URL", "https://cybqa.pesapal.com")
+# PesaPal API Configuration - FIXED
+PESAPAL_BASE_URL = os.getenv("PESAPAL_BASE_URL", "https://cybqa.pesapal.com/pesapalv3")  # Fixed: added /pesapalv3
 PESAPAL_CONSUMER_KEY = os.getenv("PESAPAL_CONSUMER_KEY", "")
 PESAPAL_CONSUMER_SECRET = os.getenv("PESAPAL_CONSUMER_SECRET", "")
 
@@ -221,77 +221,71 @@ async def deposit_mpesa(
     if not phone:
         raise HTTPException(400, "Phone number is required")
     
+    # Create transaction record first
+    tx_id = str(uuid.uuid4())
+    tx = Transaction(
+        id=tx_id,
+        wallet_id=wallet.id,
+        operator_id=user_op_id,
+        business_id=None,
+        tx_type=TransactionType.DEPOSIT,
+        status=TransactionStatus.PROCESSING,
+        amount=amount,
+        fee=Decimal("0.00"),
+        net_amount=amount,
+        currency="KES",
+        tx_ref=reference,
+        provider="pesapal",
+        provider_ref=None,
+        failure_reason=None,
+        created_at=datetime.utcnow(),
+        completed_at=None
+    )
+    db.add(tx)
+    
+    try:
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(500, f"Failed to create transaction: {str(e)}")
+    
     try:
         # Format phone for PesaPal
         formatted_phone = format_phone_for_pesapal(phone)
         
-        # Create transaction record - FIXED: Added all required fields
-        tx_id = str(uuid.uuid4())
-        tx = Transaction(
-            id=tx_id,
-            wallet_id=wallet.id,
-            operator_id=user_op_id,  # CRITICAL: Added operator_id
-            business_id=None,  # Set if needed
-            tx_type=TransactionType.DEPOSIT,
-            status=TransactionStatus.PROCESSING,
-            amount=amount,
-            fee=Decimal("0.00"),
-            net_amount=amount,  # CRITICAL: Added net_amount
-            currency="KES",
-            tx_ref=reference,
-            provider="pesapal",
-            provider_ref=None,
-            failure_reason=None,
-            beneficiary_phone=formatted_phone,
-            created_at=datetime.utcnow(),
-            completed_at=None
-        )
-        db.add(tx)
-        db.commit()
-        
         # Call PesaPal STK Push
         from ..services.pesapal import submit_pesapal_order
-        try:
-            pesapal_result = await submit_pesapal_order(
-                phone=formatted_phone,
-                amount=float(amount),
-                reference=reference,
-                description=f"Wallet Deposit - {reference}"
-            )
-            
-            # Update transaction with PesaPal reference
-            tx.provider_ref = pesapal_result.get("order_tracking_id")
-            tx.provider_data = pesapal_result
-            db.commit()
-            
-            return {
-                "status": "pending",
-                "message": "STK Push sent to phone",
-                "order_tracking_id": tx.provider_ref,
-                "tx_id": tx_id,
-                "tx_ref": reference
-            }
-        except Exception as e:
-            # Mark as failed
-            tx.status = TransactionStatus.FAILED
-            tx.failure_reason = str(e)
-            db.commit()
-            raise HTTPException(400, str(e))
-                
-    except httpx.RequestError as e:
-        # Update transaction with error
-        tx.status = TransactionStatus.FAILED
-        tx.failure_reason = f"Network error: {str(e)}"
+        pesapal_result = await submit_pesapal_order(
+            phone=formatted_phone,
+            amount=float(amount),
+            reference=reference,
+            description=f"Wallet Deposit - {reference}"
+        )
+        
+        # Update transaction with PesaPal reference
+        tx.provider_ref = pesapal_result.get("order_tracking_id")
+        tx.beneficiary_phone = formatted_phone
         db.commit()
-        raise HTTPException(502, f"Payment gateway error: {str(e)}")
+        
+        return {
+            "status": "pending",
+            "message": "STK Push sent to phone",
+            "order_tracking_id": tx.provider_ref,
+            "tx_id": tx_id,
+            "tx_ref": reference
+        }
+        
     except ValueError as e:
-        # Update transaction with error
         tx.status = TransactionStatus.FAILED
         tx.failure_reason = str(e)
         db.commit()
         raise HTTPException(400, str(e))
+    except httpx.RequestError as e:
+        tx.status = TransactionStatus.FAILED
+        tx.failure_reason = f"Network error: {str(e)}"
+        db.commit()
+        raise HTTPException(502, f"Payment gateway error: {str(e)}")
     except Exception as e:
-        # Update transaction with error
         tx.status = TransactionStatus.FAILED
         tx.failure_reason = str(e)
         db.commit()
@@ -300,102 +294,45 @@ async def deposit_mpesa(
 @router.post("/deposit/mpesa/webhook")
 async def pesapal_webhook(request: Request, db: Session = Depends(get_db)):
     """Handle PesaPal webhook for payment notifications"""
-    payload = await request.json()
+    try:
+        payload = await request.json()
+    except:
+        payload = await request.body()
+        try:
+            import json
+            payload = json.loads(payload)
+        except:
+            payload = {}
     
     # Verify webhook signature (implement based on PesaPal docs)
     
-    event_type = payload.get("payment_status")
+    event_type = payload.get("payment_status") or payload.get("status")
     order_tracking_id = payload.get("order_tracking_id")
     merchant_reference = payload.get("merchant_reference")
-    amount = payload.get("amount")
     
-    if event_type == "COMPLETED":
+    if event_type == "COMPLETED" and order_tracking_id:
         # Payment successful
-        order_tracking_id = payload.get("order_tracking_id")
-        merchant_reference = payload.get("merchant_reference")
-        amount = payload.get("amount")
-        
-        # Find transaction
         transaction = db.query(Transaction).filter(
             (Transaction.provider_ref == order_tracking_id) | (Transaction.tx_ref == merchant_reference)
         ).first()
         
-        if transaction:
+        if transaction and transaction.status == TransactionStatus.PROCESSING:
             transaction.status = TransactionStatus.COMPLETED
             transaction.completed_at = datetime.utcnow()
             
             # Update wallet balance
             wallet = db.query(Wallet).filter(Wallet.id == transaction.wallet_id).first()
-            if wallet:
+            if wallet and transaction.tx_type == TransactionType.DEPOSIT:
                 wallet.kes_balance += transaction.amount
             
             db.commit()
             
-    elif event_type == "FAILED":
+    elif event_type == "FAILED" and order_tracking_id:
         # Payment failed
-        order_tracking_id = payload.get("order_tracking_id")
-        reason = payload.get("reason", "Unknown error")
-        
         transaction = db.query(Transaction).filter(Transaction.provider_ref == order_tracking_id).first()
-        if transaction:
-            transaction.status = TransactionStatus.FAILED
-            transaction.failure_reason = reason
-            db.commit()
-    
-    return {
-        "status": "received",
-        "transaction_id": transaction.id if transaction else None
-    }
-
-# --- 5. PESAPAL WEBHOOK ROUTE ---
-
-@router.post("/webhook/pesapal")
-async def pesapal_ipn(request: Request, db: Session = Depends(get_db)):
-    """Handle PesaPal IPN (Instant Payment Notification)"""
-    payload = await request.json()
-    
-    from ..services.pesapal import handle_pesapal_webhook
-    result = await handle_pesapal_webhook(payload)
-    
-    if result.get("status") == "completed":
-        # Find and update transaction
-        order_tracking_id = result.get("order_tracking_id")
-        merchant_reference = result.get("merchant_reference")
-        
-        transaction = db.query(Transaction).filter(
-            (Transaction.provider_ref == order_tracking_id) | (Transaction.tx_ref == merchant_reference)
-        ).first()
-        
-        if transaction and transaction.status == TransactionStatus.PROCESSING:
-            transaction.status = TransactionStatus.COMPLETED
-            transaction.completed_at = datetime.utcnow()
-            
-            # Update wallet balance for deposits
-            if transaction.tx_type == TransactionType.DEPOSIT:
-                wallet = db.query(Wallet).filter(Wallet.id == transaction.wallet_id).first()
-                if wallet:
-                    wallet.kes_balance += transaction.amount
-            
-            db.commit()
-            
-    elif result.get("status") == "failed":
-        # Find and mark transaction as failed
-        order_tracking_id = result.get("order_tracking_id")
-        
-        transaction = db.query(Transaction).filter(
-            Transaction.provider_ref == order_tracking_id
-        ).first()
-        
         if transaction and transaction.status == TransactionStatus.PROCESSING:
             transaction.status = TransactionStatus.FAILED
-            transaction.failure_reason = result.get("reason", "Payment failed")
-            
-            # Refund for withdrawals
-            if transaction.tx_type == TransactionType.WITHDRAWAL:
-                wallet = db.query(Wallet).filter(Wallet.id == transaction.wallet_id).first()
-                if wallet:
-                    wallet.kes_balance += transaction.amount + transaction.fee
-            
+            transaction.failure_reason = payload.get("reason", "Payment failed")
             db.commit()
     
     return {"status": "received"}
@@ -454,18 +391,18 @@ async def withdraw_mpesa(
     # Deduct funds immediately to prevent double spending
     wallet.kes_balance -= total_deduction
     
-    # Create transaction record - FIXED: Added all required fields
+    # Create transaction record
     tx_id = str(uuid.uuid4())
     tx = Transaction(
         id=tx_id,
         wallet_id=wallet.id,
-        operator_id=user_op_id,  # CRITICAL: Added operator_id
-        business_id=None,  # Set if needed
+        operator_id=user_op_id,
+        business_id=None,
         tx_type=TransactionType.WITHDRAWAL,
         status=TransactionStatus.PROCESSING,
         amount=amount,
         fee=fee,
-        net_amount=amount - fee,  # CRITICAL: Added net_amount
+        net_amount=amount,
         currency="KES",
         tx_ref=reference,
         provider="pesapal",
@@ -504,7 +441,6 @@ async def withdraw_mpesa(
         
         # Store PesaPal references
         tx.provider_ref = pesapal_result.get("order_tracking_id")
-        tx.provider_data = pesapal_result
         db.commit()
         
         return {
@@ -564,6 +500,8 @@ async def get_withdrawal_status(
             elif result.get("status") == "FAILED":
                 transaction.status = TransactionStatus.FAILED
                 transaction.failure_reason = result.get("reason", "Payout failed")
+                # Refund the wallet
+                wallet.kes_balance += transaction.amount + transaction.fee
                 db.commit()
         except Exception as e:
             print(f"Error checking payout status: {e}")
@@ -618,7 +556,7 @@ async def get_deposit_status(
                 transaction.status = TransactionStatus.COMPLETED
                 transaction.completed_at = datetime.utcnow()
                 # Add funds to wallet
-                wallet.kes_balance += transaction.net_amount
+                wallet.kes_balance += transaction.amount
                 db.commit()
             elif result.get("status") == "FAILED":
                 transaction.status = TransactionStatus.FAILED
@@ -640,7 +578,7 @@ async def get_deposit_status(
 
 # --- 5. CONVERSION ROUTES ---
 
-@router.post("/wallet/convert")
+@router.post("/convert")
 async def wallet_convert(
     payload: dict,
     current_user: dict = Depends(get_current_user),
@@ -655,7 +593,7 @@ async def wallet_convert(
     from_currency = payload.get("from_currency")  # "USDT" or "KES"
     to_currency = payload.get("to_currency")  # "KES" or "USDT"
     amount = Decimal(str(payload.get("amount", 0)))
-    rate = Decimal(str(payload.get("rate", "128.93")))
+    rate = Decimal(str(payload.get("rate", "129.50")))
     fee = Decimal(str(payload.get("fee", 0)))
     reference = payload.get("reference", f"CONV-{uuid.uuid4().hex[:8].upper()}")
     
@@ -664,11 +602,11 @@ async def wallet_convert(
     
     # Calculate conversion
     if from_currency == "USDT" and to_currency == "KES":
-        if wallet.usdt_balance < (amount + fee):
-            raise HTTPException(400, f"Insufficient USDT. Need {amount + fee} USDT including fee")
+        if wallet.usdt_balance < amount:
+            raise HTTPException(400, f"Insufficient USDT. Need {amount} USDT")
         
-        # Deduct USDT + fee
-        wallet.usdt_balance -= (amount + fee)
+        # Deduct USDT
+        wallet.usdt_balance -= amount
         # Add KES
         kes_amount = amount * rate
         wallet.kes_balance += kes_amount
@@ -679,13 +617,15 @@ async def wallet_convert(
             wallet_id=wallet.id,
             operator_id=user_op_id,
             tx_type=TransactionType.CONVERSION,
+            status=TransactionStatus.COMPLETED,
             amount=amount,
             fee=fee,
             net_amount=kes_amount,
             currency="USDT",
-            status=TransactionStatus.COMPLETED,
             tx_ref=reference,
             provider="internal",
+            created_at=datetime.utcnow(),
+            completed_at=datetime.utcnow(),
             metadata_json={
                 "from_currency": "USDT",
                 "to_currency": "KES",
@@ -695,11 +635,11 @@ async def wallet_convert(
         )
         
     elif from_currency == "KES" and to_currency == "USDT":
-        if wallet.kes_balance < (amount + fee):
-            raise HTTPException(400, f"Insufficient KES. Need {amount + fee} KES including fee")
+        if wallet.kes_balance < amount:
+            raise HTTPException(400, f"Insufficient KES. Need {amount} KES")
         
-        # Deduct KES + fee
-        wallet.kes_balance -= (amount + fee)
+        # Deduct KES
+        wallet.kes_balance -= amount
         # Add USDT
         usdt_amount = amount / rate
         wallet.usdt_balance += usdt_amount
@@ -710,13 +650,15 @@ async def wallet_convert(
             wallet_id=wallet.id,
             operator_id=user_op_id,
             tx_type=TransactionType.CONVERSION,
+            status=TransactionStatus.COMPLETED,
             amount=amount,
             fee=fee,
             net_amount=usdt_amount,
             currency="KES",
-            status=TransactionStatus.COMPLETED,
             tx_ref=reference,
             provider="internal",
+            created_at=datetime.utcnow(),
+            completed_at=datetime.utcnow(),
             metadata_json={
                 "from_currency": "KES",
                 "to_currency": "USDT",
@@ -933,3 +875,64 @@ async def get_revenue_volume(
         "weekly": [8500, 9200, 8800, 9500],
         "monthly": [35000, 42000, 38000]
     }
+
+# --- 9. WEBHOOK ROUTE ---
+
+@router.post("/webhook/pesapal")
+async def pesapal_ipn(request: Request, db: Session = Depends(get_db)):
+    """Handle PesaPal IPN (Instant Payment Notification)"""
+    try:
+        payload = await request.json()
+    except:
+        payload = await request.body()
+        try:
+            import json
+            payload = json.loads(payload)
+        except:
+            payload = {}
+    
+    from ..services.pesapal import handle_pesapal_webhook
+    result = await handle_pesapal_webhook(payload)
+    
+    if result.get("status") == "completed":
+        # Find and update transaction
+        order_tracking_id = result.get("order_tracking_id")
+        merchant_reference = result.get("merchant_reference")
+        
+        transaction = db.query(Transaction).filter(
+            (Transaction.provider_ref == order_tracking_id) | (Transaction.tx_ref == merchant_reference)
+        ).first()
+        
+        if transaction and transaction.status == TransactionStatus.PROCESSING:
+            transaction.status = TransactionStatus.COMPLETED
+            transaction.completed_at = datetime.utcnow()
+            
+            # Update wallet balance for deposits
+            if transaction.tx_type == TransactionType.DEPOSIT:
+                wallet = db.query(Wallet).filter(Wallet.id == transaction.wallet_id).first()
+                if wallet:
+                    wallet.kes_balance += transaction.amount
+            
+            db.commit()
+            
+    elif result.get("status") == "failed":
+        # Find and mark transaction as failed
+        order_tracking_id = result.get("order_tracking_id")
+        
+        transaction = db.query(Transaction).filter(
+            Transaction.provider_ref == order_tracking_id
+        ).first()
+        
+        if transaction and transaction.status == TransactionStatus.PROCESSING:
+            transaction.status = TransactionStatus.FAILED
+            transaction.failure_reason = result.get("reason", "Payment failed")
+            
+            # Refund for withdrawals
+            if transaction.tx_type == TransactionType.WITHDRAWAL:
+                wallet = db.query(Wallet).filter(Wallet.id == transaction.wallet_id).first()
+                if wallet:
+                    wallet.kes_balance += transaction.amount + transaction.fee
+            
+            db.commit()
+    
+    return {"status": "received"}

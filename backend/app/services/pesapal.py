@@ -10,8 +10,8 @@ from fastapi import HTTPException
 # Configure logging
 logger = logging.getLogger(__name__)
 
-# PesaPal API Configuration
-PESAPAL_BASE_URL = os.getenv("PESAPAL_BASE_URL", "https://cybqa.pesapal.com/v3")  # Sandbox v3
+# PesaPal API Configuration - CORRECTED BASE URLS
+PESAPAL_BASE_URL = os.getenv("PESAPAL_BASE_URL", "https://cybqa.pesapal.com/pesapalv3")  # Sandbox v3 (FIXED)
 # PESAPAL_BASE_URL = "https://pay.pesapal.com/v3"  # Production v3
 
 PESAPAL_CONSUMER_KEY = os.getenv("PESAPAL_CONSUMER_KEY", "")
@@ -68,34 +68,22 @@ async def get_pesapal_token() -> str:
         creds = get_pesapal_credentials()
         url = f"{PESAPAL_BASE_URL}/api/Auth/RequestToken"
         
-        # PesaPal might require form data instead of JSON
+        # PesaPal requires JSON payload
         payload = {
             "consumer_key": creds["consumer_key"],
             "consumer_secret": creds["consumer_secret"]
         }
         
-        # Try with form-encoded data (some PesaPal endpoints require this)
         async with httpx.AsyncClient() as client:
-            # First try with form-encoded
+            # PesaPal v3 expects JSON
             response = await client.post(
                 url, 
-                data=payload,  # form-encoded instead of json
-                headers={"Content-Type": "application/x-www-form-urlencoded"},
+                json=payload,
+                headers={"Content-Type": "application/json"},
                 timeout=30
             )
             
-            logger.info(f"PesaPal token request (form): {response.status_code} - {response.text[:200]}")
-            
-            if response.status_code == 200:
-                result = response.json()
-                token = result.get("token") or result.get("access_token")
-                if token:
-                    return token
-            
-            # If form-encoded didn't work, try JSON
-            response = await client.post(url, json=payload, timeout=30)
-            
-            logger.info(f"PesaPal token request (json): {response.status_code} - {response.text[:200]}")
+            logger.info(f"PesaPal token request: {response.status_code}")
             
             if response.status_code == 200:
                 result = response.json()
@@ -106,7 +94,16 @@ async def get_pesapal_token() -> str:
                 return token
             else:
                 logger.error(f"PesaPal token error: {response.status_code} - {response.text}")
-                raise HTTPException(status_code=400, detail=f"Failed to authenticate with PesaPal: {response.text[:100]}")
+                error_detail = f"Failed to authenticate with PesaPal"
+                try:
+                    error_data = response.json()
+                    if "error" in error_data:
+                        error_detail = error_data["error"]
+                    elif "message" in error_data:
+                        error_detail = error_data["message"]
+                except:
+                    pass
+                raise HTTPException(status_code=400, detail=error_detail)
                 
     except httpx.RequestError as e:
         logger.error(f"PesaPal network error: {str(e)}")
@@ -134,74 +131,79 @@ async def submit_pesapal_order(
         # Unique order ID
         order_id = f"{reference}_{int(time.time())}"
         
-        url = f"{PESAPAL_BASE_URL}/api/Orders/SubmitOrderRequest"
+        url = f"{PESAPAL_BASE_URL}/api/Transactions/SubmitOrderRequest"
         
         headers = {
             "Authorization": f"Bearer {token}",
             "Content-Type": "application/json"
         }
         
-        # Generate unique reference
-        creds = get_pesapal_credentials()
-        
-        # Use registered IPN ID if available, otherwise omit (PesaPal will use callback_url)
+        # Use registered IPN ID if available, otherwise omit
         ipn_id = os.getenv("PESAPAL_IPN_ID", "")
+        
+        # Current timestamp in required format
+        timestamp = time.strftime("%Y-%m-%dT%H:%M:%SZ")
+        
         payload = {
-            "consumer_key": creds["consumer_key"],
-            "signature_method": "SHA256",
-            "timestamp": time.strftime("%Y%m%d%H%M%S"),
-            "Version": "3.3",
-            "amount": str(int(amount)),
+            "id": reference,
             "currency": "KES",
+            "amount": amount,
             "description": description[:50],
-            "type": "MERCHANT",
-            "reference": order_id,
-            "phone_number": formatted_phone,
-            "callback_url": PESAPAL_CALLBACK_URL or f"{os.getenv('APP_DOMAIN', '')}/api/webhooks/pesapal"
+            "callback_url": PESAPAL_CALLBACK_URL or f"{os.getenv('FRONTEND_URL', '')}/payment/callback",
+            "notification_id": ipn_id if ipn_id else None,
+            "billing_address": {
+                "phone_number": formatted_phone,
+                "email_address": "customer@example.com",  # You may want to make this dynamic
+                "country_code": "KE",
+                "first_name": "Customer",
+                "last_name": "Name",
+                "line_1": "Address Line 1",
+                "city": "Nairobi",
+                "state": "Nairobi",
+                "postal_code": "00100"
+            }
         }
         
-        # Only add ipn_notification_id if we have a registered IPN ID
-        if ipn_id:
-            payload["ipn_notification_id"] = ipn_id
+        # Remove None values
+        payload = {k: v for k, v in payload.items() if v is not None}
         
-        payload["account_number"] = reference[:20]
-        
-        # Generate signature
-        signature_string = f"{creds['consumer_key']}{payload['reference']}{payload['amount']}{payload['currency']}{creds['consumer_secret']}"
-        payload["signature"] = hashlib.sha256(signature_string.encode()).hexdigest()
-        
-        logger.info(f"PesaPal order request: {url}")
-        logger.info(f"PesaPal order payload: {json.dumps(payload)}")
+        logger.info(f"PesaPal order request to {url}")
+        logger.debug(f"PesaPal order payload: {json.dumps(payload)}")
         
         async with httpx.AsyncClient() as client:
             response = await client.post(url, json=payload, headers=headers, timeout=30)
             
-            logger.info(f"PesaPal order response: {response.status_code} - {response.text}")
+            logger.info(f"PesaPal order response: {response.status_code}")
             
             if response.status_code == 200:
                 result = response.json()
                 
                 if result.get("status") == "200" or result.get("order_tracking_id"):
-                    logger.info(f"PesaPal order submitted: {result.get('order_tracking_id')}")
+                    order_tracking_id = result.get("order_tracking_id") or result.get("tracking_id")
+                    redirect_url = result.get("redirect_url") or result.get("merchant_reference")
+                    
+                    logger.info(f"PesaPal order submitted: {order_tracking_id}")
                     return {
                         "status": "success",
                         "message": "Payment request initiated",
-                        "order_tracking_id": result.get("order_tracking_id"),
-                        "merchant_reference": order_id,
-                        "redirect_url": result.get("redirect_url", ""),
+                        "order_tracking_id": order_tracking_id,
+                        "merchant_reference": result.get("merchant_reference", order_id),
+                        "redirect_url": redirect_url,
                         "provider": "pesapal"
                     }
                 else:
-                    error_msg = result.get("message", "Order submission failed")
+                    error_msg = result.get("error", {}).get("message", result.get("message", "Order submission failed"))
                     logger.error(f"PesaPal order error: {error_msg}")
                     raise HTTPException(status_code=400, detail=error_msg)
             else:
-                error_data = response.json()
-                logger.error(f"PesaPal API error: {error_data}")
-                raise HTTPException(
-                    status_code=response.status_code,
-                    detail=error_data.get("message", "Payment service error")
-                )
+                error_text = response.text
+                logger.error(f"PesaPal API error: {response.status_code} - {error_text}")
+                try:
+                    error_data = response.json()
+                    error_msg = error_data.get("error", {}).get("message", error_data.get("message", "Payment service error"))
+                except:
+                    error_msg = f"Payment service error: {response.status_code}"
+                raise HTTPException(status_code=response.status_code, detail=error_msg)
                 
     except httpx.RequestError as e:
         logger.error(f"PesaPal network error: {str(e)}")
@@ -221,7 +223,7 @@ async def check_pesapal_status(order_tracking_id: str) -> Dict[str, Any]:
     try:
         token = await get_pesapal_token()
         
-        url = f"{PESAPAL_BASE_URL}/api/Orders/GetTransactionStatus"
+        url = f"{PESAPAL_BASE_URL}/api/Transactions/GetTransactionStatus"
         
         headers = {
             "Authorization": f"Bearer {token}",
@@ -237,12 +239,13 @@ async def check_pesapal_status(order_tracking_id: str) -> Dict[str, Any]:
             
             if response.status_code == 200:
                 result = response.json()
+                payment_status = result.get("payment_status") or result.get("status")
                 return {
-                    "status": result.get("payment_status"),
+                    "status": payment_status,
                     "order_tracking_id": order_tracking_id,
                     "amount": result.get("amount"),
                     "reference": result.get("merchant_reference"),
-                    "complete": result.get("payment_status") == "COMPLETED"
+                    "complete": payment_status == "COMPLETED"
                 }
             else:
                 logger.error(f"Status check failed: {response.text}")
@@ -261,7 +264,7 @@ async def register_pesapal_ipn(url: str, ipn_name: str = "Geon IPN") -> Dict[str
     try:
         token = await get_pesapal_token()
         
-        ipn_url = f"{PESAPAL_BASE_URL}/api/Recipes/RegisterIPN"
+        ipn_url = f"{PESAPAL_BASE_URL}/api/URLSetup/RegisterIPN"
         
         headers = {
             "Authorization": f"Bearer {token}",
@@ -270,7 +273,7 @@ async def register_pesapal_ipn(url: str, ipn_name: str = "Geon IPN") -> Dict[str
         
         payload = {
             "url": url,
-            "ipn_name": ipn_name
+            "ipn_notification_type": "GET"
         }
         
         async with httpx.AsyncClient() as client:
@@ -318,15 +321,17 @@ async def trigger_pesapal_b2c_payment(
         }
         
         payload = {
-            "amount": str(int(amount)),
+            "amount": amount,
             "currency": "KES",
             "description": description[:50],
             "reference": payout_ref,
             "phone_number": formatted_phone,
-            "call_back_url": PESAPAL_CALLBACK_URL or f"{os.getenv('APP_DOMAIN', '')}/api/webhooks/pesapal",
+            "callback_url": PESAPAL_CALLBACK_URL or f"{os.getenv('FRONTEND_URL', '')}/withdrawal/callback",
             "node_type": "MNO",
             "node_name": "MPESA"
         }
+        
+        logger.info(f"PesaPal B2C request to {url}")
         
         async with httpx.AsyncClient() as client:
             response = await client.post(url, json=payload, headers=headers, timeout=30)
@@ -335,26 +340,30 @@ async def trigger_pesapal_b2c_payment(
                 result = response.json()
                 
                 if result.get("status") == "200" or result.get("order_tracking_id"):
+                    order_tracking_id = result.get("order_tracking_id")
+                    logger.info(f"PesaPal payout initiated: {order_tracking_id}")
                     return {
                         "status": "success",
                         "message": "Payout initiated",
-                        "order_tracking_id": result.get("order_tracking_id"),
+                        "order_tracking_id": order_tracking_id,
                         "reference": payout_ref,
                         "amount": amount,
                         "phone": formatted_phone,
                         "provider": "pesapal"
                     }
                 else:
-                    error_msg = result.get("message", "Payout failed")
+                    error_msg = result.get("error", {}).get("message", result.get("message", "Payout failed"))
                     logger.error(f"PesaPal payout error: {error_msg}")
                     raise HTTPException(status_code=400, detail=error_msg)
             else:
-                error_data = response.json()
-                logger.error(f"PesaPal payout API error: {error_data}")
-                raise HTTPException(
-                    status_code=response.status_code,
-                    detail=error_data.get("message", "Payout failed")
-                )
+                error_text = response.text
+                logger.error(f"PesaPal payout API error: {response.status_code} - {error_text}")
+                try:
+                    error_data = response.json()
+                    error_msg = error_data.get("error", {}).get("message", error_data.get("message", "Payout failed"))
+                except:
+                    error_msg = f"Payout service error: {response.status_code}"
+                raise HTTPException(status_code=response.status_code, detail=error_msg)
                 
     except httpx.RequestError as e:
         logger.error(f"PesaPal payout network error: {str(e)}")
@@ -391,13 +400,14 @@ async def check_pesapal_payout_status(order_tracking_id: str) -> Dict[str, Any]:
             if response.status_code == 200:
                 result = response.json()
                 return {
-                    "status": result.get("status"),
+                    "status": result.get("status") or result.get("payment_status"),
                     "order_tracking_id": order_tracking_id,
                     "amount": result.get("amount"),
                     "payment_status": result.get("payment_status"),
                     "description": result.get("description")
                 }
             else:
+                logger.error(f"Payout status check failed: {response.text}")
                 return {"status": "unknown", "error": "Could not fetch payout status"}
                 
     except Exception as e:
@@ -448,35 +458,3 @@ async def handle_pesapal_webhook(payload: Dict[str, Any]) -> Dict[str, Any]:
             "data": payload,
             "status": "received"
         }
-
-
-# --- 7. GET WALLETS (M-Pesa Registered Numbers) ---
-async def get_pesapal_wallets() -> Dict[str, Any]:
-    """
-    Get registered M-Pesa wallets/customer IDs from PesaPal.
-    """
-    try:
-        token = await get_pesapal_token()
-        
-        url = f"{PESAPAL_BASE_URL}/api/Wallet/GetWallets"
-        
-        headers = {
-            "Authorization": f"Bearer {token}",
-            "Content-Type": "application/json"
-        }
-        
-        async with httpx.AsyncClient() as client:
-            response = await client.get(url, headers=headers, timeout=10)
-            
-            if response.status_code == 200:
-                result = response.json()
-                return {
-                    "status": "success",
-                    "wallets": result.get("wallets", [])
-                }
-            else:
-                return {"status": "error", "wallets": []}
-                
-    except Exception as e:
-        logger.error(f"Error getting PesaPal wallets: {str(e)}")
-        return {"status": "error", "wallets": []}
