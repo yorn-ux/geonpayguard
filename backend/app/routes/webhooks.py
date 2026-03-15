@@ -7,7 +7,53 @@ from ..models.wallet import Transaction, Wallet, TransactionStatus
 
 logger = logging.getLogger("webhooks")
 router = APIRouter(tags=["Webhooks"])
-# --- 1. M-PESA STK CALLBACK ---
+
+# --- 1. PESAPAL WEBHOOK ---
+@router.post("/pesapal")
+async def pesapal_webhook(request: Request, db: Session = Depends(get_db)):
+    """
+    PesaPal calls this for payment notifications.
+    """
+    data = await request.json()
+    
+    # Get order tracking ID and payment status
+    order_tracking_id = data.get("order_tracking_id")
+    payment_status = data.get("payment_status", "").upper()
+    merchant_reference = data.get("merchant_reference", "")
+    
+    logger.info(f"PesaPal webhook received: {order_tracking_id} - {payment_status}")
+    
+    # Find transaction by order tracking ID or merchant reference
+    tx = db.query(Transaction).filter(
+        (Transaction.tx_ref == order_tracking_id) | 
+        (Transaction.tx_ref == merchant_reference)
+    ).first()
+    
+    if not tx:
+        logger.error(f"Transaction not found for PesaPal: {order_tracking_id}")
+        return {"status": "ignored", "reason": "tx_not_found"}
+        
+    if tx.status == TransactionStatus.COMPLETED:
+        return {"status": "ignored", "reason": "already_completed"}
+
+    if payment_status == "COMPLETED":
+        wallet = db.query(Wallet).filter(Wallet.id == tx.wallet_id).with_for_update().first()
+        tx.status = TransactionStatus.COMPLETED
+        wallet.kes_balance += tx.amount
+        db.commit()
+        logger.info(f"✅ PesaPal Payment Success: {merchant_reference}")
+        return {"status": "success", "message": "Payment completed"}
+    elif payment_status == "FAILED":
+        tx.status = TransactionStatus.FAILED
+        db.commit()
+        logger.warning(f"❌ PesaPal Payment Failed: {merchant_reference}")
+        return {"status": "failed", "message": "Payment failed"}
+    else:
+        # PENDING or other status
+        logger.info(f"PesaPal Payment Pending: {merchant_reference} - Status: {payment_status}")
+        return {"status": "pending", "message": "Payment pending"}
+
+# --- 2. M-PESA STK CALLBACK ---
 @router.post("/mpesa/stk-callback")
 async def mpesa_stk_callback(request: Request, db: Session = Depends(get_db)):
     """
@@ -42,43 +88,3 @@ async def mpesa_stk_callback(request: Request, db: Session = Depends(get_db)):
 
     db.commit()
     return {"ResultCode": 0, "ResultDesc": "Success"}
-
-# --- 2. FLUTTERWAVE WEBHOOK ---
-@router.post("/flutterwave")
-async def flutterwave_webhook(
-    request: Request, 
-    db: Session = Depends(get_db),
-    verif_hash: str = Header(None, alias="verif-hash") # Security Header
-):
-    """
-    Flutterwave calls this for Card/Bank Transfer payments.
-    """
-    # 1. Verify Webhook Secret (Prevent spoofing)
-    secret_hash = os.getenv("FLW_WEBHOOK_HASH")
-    if verif_hash != secret_hash:
-        logger.error("Unauthorized Flutterwave Webhook attempt")
-        return {"status": "error", "message": "Invalid hash"}
-    
-    data = await request.json()
-    tx_ref = data.get("tx_ref")
-    status_flw = data.get("status") # 'successful' or 'failed'
-    
-    tx = db.query(Transaction).filter(Transaction.tx_ref == tx_ref).first()
-    
-    if not tx:
-        return {"status": "ignored", "reason": "tx_not_found"}
-        
-    if tx.status == TransactionStatus.COMPLETED:
-        return {"status": "ignored", "reason": "already_completed"}
-
-    if status_flw == "successful":
-        wallet = db.query(Wallet).filter(Wallet.id == tx.wallet_id).with_for_update().first()
-        tx.status = TransactionStatus.COMPLETED
-        wallet.kes_balance += tx.amount
-        db.commit()
-        logger.info(f"✅ Card Deposit Success: {tx_ref}")
-    else:
-        tx.status = TransactionStatus.FAILED
-        db.commit()
-    
-    return {"status": "success"}

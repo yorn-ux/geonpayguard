@@ -192,7 +192,6 @@ Once the backend is running, visit:
 | `SECRET_KEY` | JWT signing key | Yes |
 | `RESEND_API_KEY` | Resend email API key | Yes |
 | `RESEND_FROM_EMAIL` | Sender email address | Yes |
-| `STRIPE_SECRET_KEY` | Stripe API secret | For card payments |
 | `PESAPAL_CONSUMER_KEY` | PesaPal Consumer Key | For M-Pesa |
 | `PESAPAL_CONSUMER_SECRET` | PesaPal Consumer Secret | For M-Pesa |
 | `PESAPAL_BASE_URL` | PesaPal API URL | `https://cybqa.pesapal.com` (sandbox) |

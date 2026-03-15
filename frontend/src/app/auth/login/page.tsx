@@ -2,11 +2,12 @@
 
 import React, { useState, useEffect } from 'react';
 import { 
-   ArrowRight, Loader2, Mail, Lock, 
-  Eye, EyeOff,  Home,
-  Fingerprint, Key, Globe, AlertTriangle,
-  CheckCircle, RefreshCw, UserCheck, XCircle,
-  Zap
+  ArrowRight, Loader2, Mail, Lock, 
+  Eye, EyeOff, Home, Fingerprint, Key, 
+  Globe, AlertTriangle, CheckCircle, RefreshCw, 
+  UserCheck, XCircle, Zap, Shield, Gem,
+  BadgeCheck, LockKeyhole, Clock,
+  ChevronRight, Building2, Users
 } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -38,20 +39,53 @@ export default function LoginPage() {
   const [hasPartialRegistration, setHasPartialRegistration] = useState<boolean>(false);
   const [isResendingVerification, setIsResendingVerification] = useState<boolean>(false);
   const [verificationResent, setVerificationResent] = useState<boolean>(false);
+  const [focusedField, setFocusedField] = useState<string | null>(null);
   
   const [formData, setFormData] = useState({
     email: '',
     password: ''
   });
 
-  // Custom Logo Component
+  // Professional Logo Component - Matches RootLayout
   const GeonLogo = () => (
-    <div className="relative w-12 h-12 flex items-center justify-center mx-auto">
-      <div className="absolute inset-0 border-2 border-rose-500 rounded-xl opacity-20"></div>
-      <div className="absolute inset-1 border border-rose-500 rounded-lg opacity-40"></div>
-      <span className="relative text-xl font-bold text-rose-500">G</span>
-      <div className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-emerald-500 rounded-full"></div>
-      <div className="absolute -bottom-0.5 -left-0.5 w-2 h-2 bg-emerald-500 rounded-full"></div>
+    <div className="relative flex items-center justify-center group">
+      {/* Logo Mark */}
+      <div className="relative w-16 h-16">
+        {/* Background Shield */}
+        <div className="absolute inset-0 bg-gradient-to-br from-slate-900 to-slate-800 rounded-2xl rotate-6 group-hover:rotate-12 transition-all duration-500 shadow-xl" />
+        
+        {/* Inner Geometric Pattern */}
+        <div className="absolute inset-[3px] bg-gradient-to-br from-slate-800 to-slate-900 rounded-xl rotate-6 group-hover:rotate-12 transition-all duration-500" />
+        
+        {/* Gold Accent Lines */}
+        <div className="absolute inset-0 flex items-center justify-center">
+          <div className="w-6 h-0.5 bg-amber-400/60 rounded-full rotate-45 absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" />
+          <div className="w-6 h-0.5 bg-amber-400/60 rounded-full -rotate-45 absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" />
+        </div>
+        
+        {/* Central Gem */}
+        <div className="absolute inset-0 flex items-center justify-center">
+          <Gem size={24} className="text-amber-400 group-hover:text-amber-300 transition-colors animate-pulse" strokeWidth={1.5} />
+        </div>
+        
+        {/* Security Verification Dots */}
+        <div className="absolute -top-1 -right-1 w-3 h-3 bg-emerald-500 rounded-full ring-2 ring-white animate-pulse shadow-lg" />
+        <div className="absolute -bottom-1 -left-1 w-3 h-3 bg-emerald-500 rounded-full ring-2 ring-white animate-pulse delay-150 shadow-lg" />
+      </div>
+
+      {/* Text Mark - Hidden on mobile, visible on desktop */}
+      <div className="hidden sm:block ml-3 text-left">
+        <div className="flex items-baseline gap-1">
+          <span className="text-2xl font-black tracking-tight text-slate-900">GEON</span>
+          <BadgeCheck size={16} className="text-emerald-500" />
+        </div>
+        <div className="flex items-center gap-1.5">
+          <span className="text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-400">PayGuard</span>
+          <span className="text-[8px] font-medium text-amber-500/70 bg-amber-50 px-1.5 py-0.5 rounded-full border border-amber-200/50">
+            SECURE
+          </span>
+        </div>
+      </div>
     </div>
   );
 
@@ -158,7 +192,6 @@ export default function LoginPage() {
               ? '/business/dashboard' 
               : '/client/dashboard';
           
-          // INSTANT redirect - no delay
           router.replace(target);
         } else {
           clearAuthData();
@@ -276,7 +309,7 @@ export default function LoginPage() {
         login_timestamp: loginTimestamp
       };
 
-      // STORE SESSION DATA - critical for dashboard access
+      // STORE SESSION DATA
       localStorage.setItem('auth_token', data.access_token);
       localStorage.setItem('geon_user', JSON.stringify(sessionData));
       localStorage.setItem('login_timestamp', loginTimestamp.toString());
@@ -290,7 +323,6 @@ export default function LoginPage() {
       document.cookie = `setup_complete=${sessionData.setup_complete}; ${cookieBase}`;
       document.cookie = `login_timestamp=${loginTimestamp}; ${cookieBase}`;
 
-      // Optional: Show toast but don't delay redirect
       showToast(`Welcome back, ${sessionData.full_name}!`, "success");
 
       // DETERMINE DASHBOARD PATH
@@ -304,8 +336,6 @@ export default function LoginPage() {
         entryPath = '/client/dashboard';
       }
       
-      // INSTANT REDIRECT - no setTimeout, no delays
-      // router.replace is instant (milliseconds)
       router.replace(entryPath);
       
     } catch (err: any) {
@@ -314,7 +344,6 @@ export default function LoginPage() {
       showToast(msg, "error");
       setIsLoading(false);
     }
-    // Note: isLoading is NOT set to false on success because we redirect immediately
   };
 
   const handleResendVerification = async () => {
@@ -366,47 +395,62 @@ export default function LoginPage() {
     setShowVerificationPrompt(false);
   };
 
-  const inputClasses = "w-full pl-11 pr-4 py-3.5 bg-white border border-gray-200 rounded-xl focus:ring-4 focus:ring-rose-500/10 focus:border-rose-500 transition-all outline-none text-sm text-gray-900 placeholder:text-gray-400 disabled:bg-gray-50 disabled:text-gray-500";
+  const inputClasses = (fieldName: string) => 
+    `w-full pl-12 pr-12 py-4 bg-white border rounded-xl focus:outline-none transition-all duration-200 text-sm text-slate-900 placeholder:text-slate-400 disabled:bg-slate-50 disabled:text-slate-500 ${
+      focusedField === fieldName 
+        ? 'border-amber-500 ring-4 ring-amber-500/10' 
+        : error && !formData[fieldName as keyof typeof formData]
+        ? 'border-rose-300 bg-rose-50/30'
+        : 'border-slate-200 hover:border-slate-300'
+    }`;
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-gray-50 flex flex-col items-center justify-center p-6">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-slate-50 flex flex-col items-center justify-center p-6">
       <div className="max-w-md w-full">
         {/* Navigation */}
         <div className="flex justify-between items-center mb-8">
-          <Link href="/" className="flex items-center gap-2 text-gray-500 hover:text-gray-900 transition-all text-sm group">
+          <Link href="/" className="group flex items-center gap-2 text-slate-400 hover:text-slate-900 transition-all text-sm">
             <Home size={16} className="group-hover:-translate-x-0.5 transition-transform" /> 
-            <span>Back to Home</span>
+            <span className="text-xs font-medium">Back to Home</span>
           </Link>
           
-          <div className="flex items-center gap-2 px-3 py-1.5 bg-white rounded-lg border border-gray-200 shadow-sm">
+          <div className="flex items-center gap-2 px-3 py-1.5 bg-white rounded-lg border border-slate-200 shadow-sm">
             <div className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
-            <span className="text-xs font-medium text-gray-600">Geon PayGuard</span>
+            <span className="text-xs font-medium text-slate-600">Secure Portal</span>
           </div>
         </div>
 
         {/* Login Card */}
-        <div className="bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden animate-in fade-in slide-in-from-bottom-4 duration-500">
-          <div className="p-8">
+        <div className="bg-white rounded-3xl shadow-2xl border border-slate-100 overflow-hidden animate-in fade-in slide-in-from-bottom-4 duration-500">
+          {/* Top Gradient Bar */}
+          <div className="h-2 bg-gradient-to-r from-amber-500 via-amber-400 to-amber-500" />
+          
+          <div className="p-8 md:p-10">
             <div className="mb-8 text-center">
-              <GeonLogo />
-              <h1 className="text-2xl font-bold text-gray-900 mt-4">Welcome Back</h1>
-              <p className="text-sm text-gray-500 mt-1">Sign in to access your financial dashboard</p>
+              <div className="flex justify-center">
+                <GeonLogo />
+              </div>
+              <h1 className="text-2xl font-black tracking-tight text-slate-900 mt-4">Welcome Back</h1>
+              <p className="text-sm text-slate-500 mt-1">Sign in to access your secure workspace</p>
               
               {/* Session timeout indicator */}
-              <div className="mt-2 flex items-center justify-center gap-1 text-xs text-gray-400">
-                <Zap size={12} className="text-rose-500" />
-                <span>Lightning fast • Session expires after 30 mins</span>
+              <div className="mt-3 flex items-center justify-center gap-2 text-xs text-slate-400 bg-slate-50 py-2 px-4 rounded-full border border-slate-200">
+                <Zap size={12} className="text-amber-500" />
+                <span>Lightning fast •</span>
+                <Clock size={12} className="text-amber-500" />
+                <span>30 min session</span>
+                <BadgeCheck size={12} className="text-emerald-500" />
               </div>
             </div>
 
             {/* Error Display */}
             {error && !showVerificationPrompt && (
-              <div className="mb-6 p-4 bg-rose-50 border border-rose-200 rounded-xl flex items-start gap-3">
+              <div className="mb-6 p-4 bg-rose-50 border border-rose-200 rounded-xl flex items-start gap-3 animate-shake">
                 <div className="shrink-0">
                   <XCircle className="text-rose-600" size={18} />
                 </div>
                 <div className="flex-1">
-                  <p className="text-rose-700 text-sm font-medium">{error}</p>
+                  <p className="text-rose-700 text-sm font-semibold">{error}</p>
                   <p className="text-rose-600 text-xs mt-1">Please check your credentials and try again</p>
                 </div>
               </div>
@@ -414,31 +458,31 @@ export default function LoginPage() {
 
             {/* Verification Prompt */}
             {showVerificationPrompt && (
-              <div className="mb-6 p-5 bg-amber-50 border border-amber-200 rounded-xl">
+              <div className="mb-6 p-5 bg-amber-50 border border-amber-200 rounded-xl animate-slide-down">
                 <div className="flex items-start gap-3">
                   <div className="shrink-0">
                     <AlertTriangle className="text-amber-600" size={20} />
                   </div>
                   <div className="flex-1">
-                    <h3 className="font-semibold text-amber-800">Email Not Verified</h3>
-                    <p className="text-sm text-amber-700 mt-1">
+                    <h3 className="font-bold text-amber-800 text-sm">Email Not Verified</h3>
+                    <p className="text-xs text-amber-700 mt-1 leading-relaxed">
                       Please verify your email address before logging in.
                     </p>
                     
                     {hasPartialRegistration && (
-                      <div className="mt-3 p-3 bg-amber-100/50 rounded-lg border border-amber-200">
+                      <div className="mt-3 p-3 bg-amber-100/70 rounded-lg border border-amber-200">
                         <p className="text-xs text-amber-800 flex items-center gap-1.5">
                           <UserCheck size={14} />
                           <span className="font-medium">Incomplete registration found for:</span>
                         </p>
-                        <p className="text-sm font-mono text-amber-900 mt-1">{pendingEmail}</p>
+                        <p className="text-sm font-mono text-amber-900 mt-1 font-semibold">{pendingEmail}</p>
                       </div>
                     )}
                     
                     {verificationResent && (
-                      <div className="mt-3 p-2 bg-emerald-100 rounded-lg flex items-center gap-2">
+                      <div className="mt-3 p-2 bg-emerald-100 rounded-lg flex items-center gap-2 border border-emerald-200">
                         <CheckCircle size={14} className="text-emerald-600" />
-                        <p className="text-xs text-emerald-700">Verification email sent! Check your inbox.</p>
+                        <p className="text-xs text-emerald-700 font-medium">Verification email sent! Check your inbox.</p>
                       </div>
                     )}
                     
@@ -446,7 +490,7 @@ export default function LoginPage() {
                       <button
                         onClick={handleResendVerification}
                         disabled={isResendingVerification}
-                        className="flex items-center gap-1.5 text-xs bg-amber-600 hover:bg-amber-700 text-white px-4 py-2 rounded-lg transition-colors font-medium disabled:opacity-50"
+                        className="flex items-center gap-1.5 text-xs bg-amber-600 hover:bg-amber-700 text-white px-4 py-2.5 rounded-lg transition-all font-medium disabled:opacity-50 shadow-md hover:shadow-lg transform hover:-translate-y-0.5"
                       >
                         {isResendingVerification ? (
                           <Loader2 size={14} className="animate-spin" />
@@ -457,13 +501,14 @@ export default function LoginPage() {
                       </button>
                       <button
                         onClick={handleContinueRegistration}
-                        className="text-xs border border-amber-300 hover:bg-amber-100 text-amber-800 px-4 py-2 rounded-lg transition-colors font-medium"
+                        className="flex items-center gap-1 text-xs border border-amber-300 hover:bg-amber-100 text-amber-800 px-4 py-2.5 rounded-lg transition-all font-medium"
                       >
-                        Continue Registration →
+                        Continue Registration
+                        <ChevronRight size={14} />
                       </button>
                       <button
                         onClick={handleClearPending}
-                        className="text-xs text-amber-700 hover:text-amber-800 px-3 py-2"
+                        className="text-xs text-amber-700 hover:text-amber-800 px-3 py-2.5 underline-offset-2 hover:underline"
                       >
                         Clear
                       </button>
@@ -475,40 +520,54 @@ export default function LoginPage() {
 
             <form onSubmit={handleLogin} className="space-y-5">
               <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-gray-700 ml-1">Email Address</label>
+                <label className="text-xs font-semibold text-slate-700 ml-1 flex items-center gap-1.5">
+                  <Mail size={12} className="text-amber-500" />
+                  Email Address
+                </label>
                 <div className="relative">
-                  <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+                  <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
                   <input 
                     type="email" 
                     required 
                     placeholder="you@example.com"
-                    className={inputClasses}
+                    className={inputClasses('email')}
                     value={formData.email}
+                    onFocus={() => setFocusedField('email')}
+                    onBlur={() => setFocusedField(null)}
                     onChange={e => setFormData({...formData, email: e.target.value})}
                     disabled={isLoading}
                     autoComplete="email"
                   />
+                  {formData.email && !error && (
+                    <CheckCircle size={16} className="absolute right-4 top-1/2 -translate-y-1/2 text-emerald-500" />
+                  )}
                 </div>
               </div>
 
               <div className="space-y-1.5">
                 <div className="flex justify-between items-center px-1">
-                  <label className="text-xs font-semibold text-gray-700">Password</label>
+                  <label className="text-xs font-semibold text-slate-700 flex items-center gap-1.5">
+                    <LockKeyhole size={12} className="text-amber-500" />
+                    Password
+                  </label>
                   <Link 
                     href="/auth/recover" 
-                    className="text-xs text-rose-600 hover:text-rose-700 font-medium hover:underline"
+                    className="text-xs text-amber-600 hover:text-amber-700 font-medium hover:underline flex items-center gap-1"
                   >
                     Forgot password?
+                    <ChevronRight size={10} />
                   </Link>
                 </div>
                 <div className="relative">
-                  <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+                  <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
                   <input 
                     type={showPassword ? "text" : "password"} 
                     required 
                     placeholder="Enter your password"
-                    className={inputClasses}
+                    className={inputClasses('password')}
                     value={formData.password}
+                    onFocus={() => setFocusedField('password')}
+                    onBlur={() => setFocusedField(null)}
                     onChange={e => setFormData({...formData, password: e.target.value})}
                     disabled={isLoading}
                     autoComplete="current-password"
@@ -516,7 +575,7 @@ export default function LoginPage() {
                   <button 
                     type="button" 
                     onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
+                    className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
                     disabled={isLoading}
                   >
                     {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
@@ -524,31 +583,33 @@ export default function LoginPage() {
                 </div>
               </div>
 
-              <div className="flex items-center justify-between">
-                <label className="flex items-center gap-2 cursor-pointer">
+              <div className="flex items-center justify-between pt-2">
+                <label className="flex items-center gap-2 cursor-pointer group">
                   <input
                     type="checkbox" 
                     checked={rememberMe}
                     onChange={(e) => setRememberMe(e.target.checked)}
-                    className="w-4 h-4 rounded border-gray-300 text-rose-600 focus:ring-rose-500"
+                    className="w-4 h-4 rounded border-slate-300 text-amber-500 focus:ring-amber-500 focus:ring-offset-0 transition-colors"
                     disabled={isLoading}
                   />
-                  <span className="text-xs text-gray-600">Remember me (30 min session)</span>
+                  <span className="text-xs text-slate-500 group-hover:text-slate-700 transition-colors">
+                    Remember me <span className="text-slate-400">(30 min session)</span>
+                  </span>
                 </label>
                 
-                <div className="text-xs text-gray-400">
-                  <span className="flex items-center gap-1">
-                    <Lock size={12} />
-                    Encrypted
-                  </span>
+                <div className="flex items-center gap-1.5 text-xs text-slate-400 bg-slate-50 px-2 py-1 rounded-full">
+                  <Lock size={10} />
+                  <span>Encrypted</span>
+                  <Shield size={10} />
                 </div>
               </div>
 
               <button 
                 type="submit" 
                 disabled={isLoading}
-                className="w-full py-3.5 bg-gradient-to-r from-rose-500 to-rose-600 hover:from-rose-600 hover:to-rose-700 text-white rounded-xl text-sm font-medium transition-all flex justify-center items-center gap-2 disabled:opacity-50 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5"
+                className="w-full py-4 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-sm font-bold transition-all flex justify-center items-center gap-2 disabled:opacity-50 shadow-xl hover:shadow-2xl transform hover:-translate-y-0.5 group relative overflow-hidden"
               >
+                <span className="absolute inset-0 bg-gradient-to-r from-amber-500/0 via-amber-500/10 to-amber-500/0 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-1000" />
                 {isLoading ? (
                   <>
                     <Loader2 className="animate-spin" size={18} /> 
@@ -556,46 +617,61 @@ export default function LoginPage() {
                   </>
                 ) : (
                   <>
-                    Sign In <ArrowRight size={18} />
+                    Sign In to Workspace 
+                    <ArrowRight size={18} className="group-hover:translate-x-1 transition-transform" />
                   </>
                 )}
               </button>
             </form>
 
-            <div className="mt-8 pt-6 border-t border-gray-100 text-center">
-              <p className="text-sm text-gray-600">
+            <div className="mt-8 pt-6 border-t border-slate-100 text-center">
+              <p className="text-sm text-slate-500">
                 Don't have an account?{' '}
                 <Link 
                   href="/auth/register" 
-                  className="text-rose-600 font-semibold hover:text-rose-700 hover:underline"
+                  className="text-amber-600 font-bold hover:text-amber-700 hover:underline inline-flex items-center gap-1 group"
                 >
                   Create free account
+                  <ChevronRight size={14} className="group-hover:translate-x-0.5 transition-transform" />
                 </Link>
               </p>
             </div>
 
-            {/* Security Notice */}
-            <div className="mt-4 p-3 bg-gray-50 rounded-lg flex items-center justify-center gap-2">
-              <Zap size={14} className="text-rose-500" />
-              <p className="text-xs text-gray-500">
-                <span className="font-medium text-gray-700">Instant access</span> • Dashboard loads in milliseconds
+            {/* Role-based quick access */}
+            <div className="mt-6 p-4 bg-gradient-to-r from-slate-50 to-white rounded-xl border border-slate-200">
+              <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-3 text-center">
+                Quick Access by Role
               </p>
+              <div className="flex justify-center gap-4">
+                <div className="flex items-center gap-1.5 text-xs text-slate-500">
+                  <Users size={12} className="text-emerald-500" />
+                  <span>Influencer</span>
+                </div>
+                <div className="flex items-center gap-1.5 text-xs text-slate-500">
+                  <Building2 size={12} className="text-amber-500" />
+                  <span>Business</span>
+                </div>
+                <div className="flex items-center gap-1.5 text-xs text-slate-500">
+                  <Shield size={12} className="text-purple-500" />
+                  <span>Admin</span>
+                </div>
+              </div>
             </div>
           </div>
         </div>
         
         {/* Trust Indicators */}
-        <div className="mt-8 flex items-center justify-center gap-8 text-gray-400">
-          <div className="flex items-center gap-1.5">
-            <Fingerprint size={14} />
+        <div className="mt-8 flex items-center justify-center gap-8 text-slate-400">
+          <div className="flex items-center gap-1.5 group hover:text-slate-600 transition-colors">
+            <Fingerprint size={14} className="group-hover:scale-110 transition-transform" />
             <span className="text-xs">Biometric Ready</span>
           </div>
-          <div className="flex items-center gap-1.5">
-            <Key size={14} />
+          <div className="flex items-center gap-1.5 group hover:text-slate-600 transition-colors">
+            <Key size={14} className="group-hover:scale-110 transition-transform" />
             <span className="text-xs">2FA Support</span>
           </div>
-          <div className="flex items-center gap-1.5">
-            <Globe size={14} />
+          <div className="flex items-center gap-1.5 group hover:text-slate-600 transition-colors">
+            <Globe size={14} className="group-hover:scale-110 transition-transform" />
             <span className="text-xs">24/7 Access</span>
           </div>
         </div>
@@ -604,9 +680,10 @@ export default function LoginPage() {
         <div className="mt-6 text-center">
           <Link 
             href="/support" 
-            className="text-xs text-gray-400 hover:text-gray-600 transition-colors"
+            className="text-xs text-slate-400 hover:text-slate-600 transition-colors inline-flex items-center gap-1 group"
           >
-            Need help? Contact support
+            <span className="group-hover:underline">Need help? Contact support</span>
+            <ChevronRight size={10} className="group-hover:translate-x-0.5 transition-transform" />
           </Link>
         </div>
       </div>

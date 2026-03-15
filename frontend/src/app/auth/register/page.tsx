@@ -4,11 +4,10 @@ import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { 
-  Loader2, ArrowRight,  Eye, EyeOff,
+  Loader2, ArrowRight, Eye, EyeOff,
   Mail, Lock, Building2, Sparkles, ArrowLeft,
   CheckCircle, AlertCircle, User, Key, Clock,
-  Fingerprint, Globe, 
-  Zap
+  Fingerprint, Globe, Zap
 } from 'lucide-react';
 import { useNotificationStore } from '@/store/useNotificationStore';
 
@@ -17,7 +16,7 @@ import { EmailVerification } from '@/components/auth/EmailVerification';
 import { RecoveryPhraseDisplay } from '@/components/auth/RecoveryPhraseDisplay';
 
 // Token expiration time (30 minutes)
-const TOKEN_EXPIRY = 30 * 60 * 1000; // 30 minutes in milliseconds
+const TOKEN_EXPIRY = 30 * 60 * 1000;
 
 export default function RegistrationPage() {
   const router = useRouter();
@@ -37,7 +36,7 @@ export default function RegistrationPage() {
     operatorId: '',
     recoveryPhrase: '',
     role: 'INFLUENCER' as UserRole,
-    accessToken: '' // Store token for immediate login after verification
+    accessToken: ''
   });
   
   const [formData, setFormData] = useState({
@@ -74,7 +73,6 @@ export default function RegistrationPage() {
       const timestamp = parseInt(loginTimestamp);
       const now = Date.now();
       
-      // Check if token is expired
       if (now - timestamp < TOKEN_EXPIRY) {
         try {
           const user = JSON.parse(savedUser);
@@ -85,13 +83,11 @@ export default function RegistrationPage() {
               : '/client/dashboard';
           router.replace(target);
         } catch (e) {
-          // Invalid user data, clear storage
           localStorage.removeItem('auth_token');
           localStorage.removeItem('geon_user');
           localStorage.removeItem('login_timestamp');
         }
       } else {
-        // Token expired, clear storage
         localStorage.removeItem('auth_token');
         localStorage.removeItem('geon_user');
         localStorage.removeItem('login_timestamp');
@@ -110,7 +106,6 @@ export default function RegistrationPage() {
     setPasswordStrength(Math.min(strength, 100));
   }, [formData.password]);
 
-  // Updated cookie helper to match LoginPage logic
   const getAuthToken = () => {
     if (typeof document === 'undefined') return null;
     return document.cookie
@@ -123,7 +118,6 @@ export default function RegistrationPage() {
     document.cookie = `geon_token=${token}; path=/; max-age=${maxAge}; SameSite=Lax; ${process.env.NODE_ENV === 'production' ? 'secure' : ''}`;
   };
 
-  // Touch handlers for mobile swipe
   const handleTouchStart = (e: React.TouchEvent) => {
     setTouchStart(e.targetTouches[0].clientX);
   };
@@ -134,24 +128,16 @@ export default function RegistrationPage() {
 
   const handleTouchEnd = () => {
     if (touchStart - touchEnd > 100) {
-      // Swipe left - next step
-      if (step < 3) {
-        setStep(step + 1);
-      }
+      if (step < 3) setStep(step + 1);
     }
-    
     if (touchStart - touchEnd < -100) {
-      // Swipe right - previous step
-      if (step > 1) {
-        setStep(step - 1);
-      }
+      if (step > 1) setStep(step - 1);
     }
   };
 
   const handleInitialSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    // Validation
     if (formData.password !== formData.confirmPassword) {
       showToast("Passwords don't match. Please try again.", "error");
       return;
@@ -208,7 +194,6 @@ export default function RegistrationPage() {
         accessToken: data.access_token || ''
       });
 
-      // Store token if provided (for auto-login)
       if (data.access_token) {
         localStorage.setItem('auth_token', data.access_token);
         setAuthCookie(data.access_token);
@@ -218,7 +203,6 @@ export default function RegistrationPage() {
         document.cookie = `login_timestamp=${loginTimestamp}; path=/; max-age=1800; SameSite=Lax;`;
       }
 
-      // Bypass check (admin or privileged enrollment)
       if (data.detail?.toLowerCase().includes("bypassed") || 
           formData.email.toLowerCase() === "root@geon.com" ||
           data.access_token) {
@@ -254,7 +238,6 @@ export default function RegistrationPage() {
         throw new Error(data.detail || "Verification failed");
       }
 
-      // ✅ CRITICAL: Store token in LocalStorage for Dashboard components
       if (data.access_token) {
         localStorage.setItem('auth_token', data.access_token);
         setAuthCookie(data.access_token);
@@ -307,10 +290,8 @@ export default function RegistrationPage() {
   const handleRegistrationComplete = async () => {
     setIsLoading(true);
     try {
-      // Finalize the setup status in cookies
       document.cookie = `setup_complete=true; path=/; max-age=31536000; SameSite=Lax; ${process.env.NODE_ENV === 'production' ? 'secure' : ''}`;
       
-      // ✅ Sync session data with LoginPage format
       const sessionUser = {
         id: registrationData.operatorId,
         full_name: registrationData.fullName,
@@ -322,14 +303,12 @@ export default function RegistrationPage() {
       
       localStorage.setItem('geon_user', JSON.stringify(sessionUser));
       
-      // Ensure token exists
       if (!localStorage.getItem('auth_token') && registrationData.accessToken) {
         localStorage.setItem('auth_token', registrationData.accessToken);
       }
       
       showToast("Your account is ready! Taking you to your dashboard...", "success");
       
-      // Small delay for toast to be visible
       setTimeout(() => {
         const target = registrationData.role === 'BUSINESS' 
           ? '/business/dashboard' 
@@ -359,7 +338,14 @@ export default function RegistrationPage() {
 
   const inputClasses = "w-full px-4 py-3 bg-white border border-gray-200 rounded-xl focus:ring-4 focus:ring-rose-500/10 focus:border-rose-500 outline-none transition-all text-sm text-gray-900 placeholder:text-gray-400";
 
-  // Desktop View - Full page centered card
+  // Step configuration - matching your actual 3 steps
+  const steps = [
+    { id: 1, name: 'Create Account', icon: User },
+    { id: 2, name: 'Verify Email', icon: Mail },
+    { id: 3, name: 'Recovery Phrase', icon: Key }
+  ];
+
+  // Desktop View
   const renderDesktop = () => (
     <div className="hidden lg:flex min-h-screen bg-gradient-to-br from-gray-50 via-white to-gray-50 items-center justify-center p-6">
       <div className="w-full max-w-xl">
@@ -382,6 +368,31 @@ export default function RegistrationPage() {
               ))}
             </div>
             <span className="text-xs text-gray-400 font-medium">Step {step} of 3</span>
+          </div>
+        </div>
+
+        {/* Step Tabs */}
+        <div className="mb-6">
+          <div className="flex items-center gap-2">
+            {steps.map((s) => {
+              const Icon = s.icon;
+              const isActive = step === s.id;
+              
+              return (
+                <button
+                  key={s.id}
+                  onClick={() => setStep(s.id)}
+                  className={`flex-1 flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl transition-all ${
+                    isActive 
+                      ? 'bg-rose-500 text-white shadow-md' 
+                      : 'bg-white border border-gray-200 text-gray-500 hover:border-rose-200 hover:text-rose-600'
+                  }`}
+                >
+                  <Icon size={16} />
+                  <span className="text-xs font-medium">{s.name}</span>
+                </button>
+              );
+            })}
           </div>
         </div>
 
@@ -625,7 +636,7 @@ export default function RegistrationPage() {
     </div>
   );
 
-  // Mobile View - Swipeable cards
+  // Mobile View
   const renderMobile = () => (
     <div className="lg:hidden min-h-screen bg-gradient-to-br from-gray-50 via-white to-gray-50">
       {/* Fixed Header */}
@@ -646,16 +657,27 @@ export default function RegistrationPage() {
           </div>
         </div>
         
-        {/* Progress Bar */}
+        {/* Mobile Step Tabs */}
         <div className="flex gap-1 mt-3">
-          {[1, 2, 3].map((num) => (
-            <div 
-              key={num} 
-              className={`h-1 rounded-full transition-all duration-500 flex-1 ${
-                step >= num ? 'bg-rose-500' : 'bg-gray-200'
-              }`} 
-            />
-          ))}
+          {steps.map((s) => {
+            const Icon = s.icon;
+            const isActive = step === s.id;
+            
+            return (
+              <button
+                key={s.id}
+                onClick={() => setStep(s.id)}
+                className={`flex-1 py-2 rounded-lg text-xs font-medium flex items-center justify-center gap-1 ${
+                  isActive 
+                    ? 'bg-rose-500 text-white' 
+                    : 'bg-gray-100 text-gray-500'
+                }`}
+              >
+                <Icon size={12} />
+                <span className="text-[10px]">{s.name}</span>
+              </button>
+            );
+          })}
         </div>
       </div>
 
@@ -870,10 +892,7 @@ export default function RegistrationPage() {
 
   return (
     <>
-      {/* Desktop View - Full page centered card */}
       {renderDesktop()}
-      
-      {/* Mobile View - Swipeable cards */}
       {renderMobile()}
     </>
   );
