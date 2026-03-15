@@ -8,7 +8,19 @@ import {
   ChevronRight,
   User,
   Settings as SettingsIcon,
- } from 'lucide-react';
+  Gem,
+  BadgeCheck,
+  Lock,
+  LayoutDashboard,
+  Briefcase,
+  Wallet,
+  HelpCircle,
+  LineChart,
+  Users,
+  Activity,
+  FileText,
+  Scale,
+} from 'lucide-react';
 
 import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
@@ -48,42 +60,90 @@ const PUBLIC_PAGES = [
 ];
 
 /* =========================
-   NAVIGATION MAP
+   NAVIGATION MAP with Icons
 ========================= */
 
-const NAV_MAP: Record<UserRole, { label: string; href: string }[]> = {
+const NAV_MAP: Record<UserRole, { label: string; href: string; icon: any }[]> = {
   influencer: [
-    { label: 'Dashboard', href: '/client/dashboard' },
-    { label: 'Vaults', href: '/vaults' },
-    { label: 'Explore', href: '/client/explore' },
-    { label: 'Wallet', href: '/wallet' },
-    { label: 'Support', href: '/support' },
+    { label: 'Dashboard', href: '/client/dashboard', icon: LayoutDashboard },
+    { label: 'Vaults', href: '/vaults', icon: Lock },
+    { label: 'Explore', href: '/client/explore', icon: Briefcase },
+    { label: 'Wallet', href: '/wallet', icon: Wallet },
+    { label: 'Support', href: '/support', icon: HelpCircle },
   ],
   business: [
-    { label: 'Overview', href: '/business/dashboard' },
-    { label: 'Campaigns', href: '/vaults' },
-    { label: 'Finances', href: '/wallet' },
-    { label: 'Analytics', href: '/business/analytics' },
-    { label: 'Support', href: '/support' },
+    { label: 'Overview', href: '/business/dashboard', icon: LayoutDashboard },
+    { label: 'Campaigns', href: '/vaults', icon: Briefcase },
+    { label: 'Finances', href: '/wallet', icon: Wallet },
+    { label: 'Analytics', href: '/business/analytics', icon: LineChart },
+    { label: 'Support', href: '/support', icon: HelpCircle },
   ],
   admin: [
-    { label: 'Dashboard', href: '/admin/dashboard' },
-    { label: 'Revenue', href: '/wallet' },
-    { label: 'Users', href: '/admin/users' },
-    { label: 'System', href: '/admin/health' },
-    { label: 'Audit', href: '/admin/audit' },
-    { label: 'Disputes', href: '/support' },
+    { label: 'Dashboard', href: '/admin/dashboard', icon: LayoutDashboard },
+    { label: 'Revenue', href: '/wallet', icon: Wallet },
+    { label: 'Users', href: '/admin/users', icon: Users },
+    { label: 'System', href: '/admin/health', icon: Activity },
+    { label: 'Audit', href: '/admin/audit', icon: FileText },
+    { label: 'Disputes', href: '/support', icon: Scale },
   ]
 };
 
-// Custom Logo Component
+// Professional Logo Component - Redesigned
 const GeonLogo = () => (
-  <div className="relative w-8 h-8 flex items-center justify-center">
-    <div className="absolute inset-0 border-2 border-rose-500 rounded-lg opacity-20"></div>
-    <div className="absolute inset-1 border border-rose-500 rounded-md opacity-40"></div>
-    <span className="relative text-base font-bold text-rose-500">G</span>
-    <div className="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 bg-emerald-500 rounded-full"></div>
-    <div className="absolute -bottom-0.5 -left-0.5 w-1.5 h-1.5 bg-emerald-500 rounded-full"></div>
+  <div className="relative flex items-center gap-3 group">
+    {/* Logo Mark */}
+    <div className="relative w-10 h-10">
+      {/* Background Shield */}
+      <div className="absolute inset-0 bg-gradient-to-br from-slate-900 to-slate-800 rounded-xl rotate-6 transform group-hover:rotate-12 transition-all duration-300 shadow-lg" />
+      
+      {/* Inner Geometric Pattern */}
+      <div className="absolute inset-[2px] bg-gradient-to-br from-slate-800 to-slate-900 rounded-lg rotate-6 transform" />
+      
+      {/* Gold Accent Lines */}
+      <div className="absolute inset-0 flex items-center justify-center">
+        <div className="w-4 h-0.5 bg-amber-400/60 rounded-full rotate-45 absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" />
+        <div className="w-4 h-0.5 bg-amber-400/60 rounded-full -rotate-45 absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" />
+      </div>
+      
+      {/* Central Gem */}
+      <div className="absolute inset-0 flex items-center justify-center">
+        <Gem size={16} className="text-amber-400 group-hover:text-amber-300 transition-colors" strokeWidth={1.5} />
+      </div>
+      
+      {/* Security Verification Dots */}
+      <div className="absolute -top-1 -right-1 w-2 h-2 bg-emerald-500 rounded-full ring-2 ring-white animate-pulse" />
+      <div className="absolute -bottom-1 -left-1 w-2 h-2 bg-emerald-500 rounded-full ring-2 ring-white animate-pulse delay-150" />
+    </div>
+
+    {/* Text Mark */}
+    <div className="flex flex-col">
+      <div className="flex items-baseline gap-1">
+        <span className="text-xl font-black tracking-tight text-slate-900 group-hover:text-slate-700 transition-colors">
+          GEON
+        </span>
+        <BadgeCheck size={14} className="text-emerald-500" />
+      </div>
+      <div className="flex items-center gap-1">
+        <span className="text-[9px] font-semibold uppercase tracking-[0.2em] text-slate-400 group-hover:text-slate-500 transition-colors">
+          PayGuard
+        </span>
+        <span className="text-[8px] font-medium text-amber-500/70 bg-amber-50 px-1.5 py-0.5 rounded-full">
+          SECURE
+        </span>
+      </div>
+    </div>
+  </div>
+);
+
+// Minimal Logo for Mobile
+const GeonLogoMini = () => (
+  <div className="relative w-9 h-9">
+    <div className="absolute inset-0 bg-gradient-to-br from-slate-900 to-slate-800 rounded-xl rotate-6 shadow-md" />
+    <div className="absolute inset-[2px] bg-gradient-to-br from-slate-800 to-slate-900 rounded-lg rotate-6" />
+    <div className="absolute inset-0 flex items-center justify-center">
+      <Gem size={14} className="text-amber-400" />
+    </div>
+    <div className="absolute -top-1 -right-1 w-1.5 h-1.5 bg-emerald-500 rounded-full ring-2 ring-white" />
   </div>
 );
 
@@ -94,7 +154,7 @@ const GeonLogo = () => (
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <body className="antialiased font-sans bg-gray-50 text-gray-900">
+      <body className="antialiased font-sans bg-slate-50 text-slate-900">
         <ThemeProvider attribute="class" defaultTheme="light" enableSystem={false}>
           <LayoutContent>{children}</LayoutContent>
           <GlobalToast />
@@ -115,11 +175,18 @@ function LayoutContent({ children }: { children: React.ReactNode }) {
   const [isInitializing, setIsInitializing] = useState(true);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null);
+  const [scrolled, setScrolled] = useState(false);
 
   const { showToast, fetchUserNotifications, unreadCount } = useNotificationStore();
 
-  // Check if current page is public (no auth needed)
-  // Note: Auth routes are handled by middleware, but we also allow them here for client-side
+  // Handle scroll effect
+  useEffect(() => {
+    const handleScroll = () => setScrolled(window.scrollY > 10);
+    window.addEventListener('scroll', handleScroll);
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
+
+  // Check if current page is public
   const isPublicPage = PUBLIC_PAGES.includes(pathname || '') || 
                        pathname?.startsWith('/auth/') || 
                        pathname?.startsWith('/_next') ||
@@ -171,7 +238,6 @@ function LayoutContent({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     const checkAuth = async () => {
-      // For auth pages, let middleware handle the redirect if needed
       if (pathname?.startsWith('/auth/')) {
         setIsInitializing(false);
         return;
@@ -182,8 +248,6 @@ function LayoutContent({ children }: { children: React.ReactNode }) {
         return;
       }
 
-      // Check both cookie and localStorage for authentication
-      // Unified token retrieval - matches settings/support page logic
       const getCookie = (name: string): string | null => {
         const value = `; ${document.cookie}`;
         const parts = value.split(`; ${name}=`);
@@ -193,13 +257,10 @@ function LayoutContent({ children }: { children: React.ReactNode }) {
         return null;
       };
       
-      // Check auth_token in localStorage first (primary), fallback to geon_token cookie
       const authToken = localStorage.getItem('auth_token') || getCookie('geon_token');
       const stored = localStorage.getItem('geon_user');
 
       if (!authToken || !stored) {
-        // No authentication - let middleware handle redirect
-        // But we can also redirect to login as a fallback
         router.push('/auth/login?t=' + Date.now());
         setIsInitializing(false);
         return;
@@ -241,12 +302,27 @@ function LayoutContent({ children }: { children: React.ReactNode }) {
 
   if (isInitializing) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="text-center">
-          <div className="w-12 h-12 bg-rose-500 rounded-xl flex items-center justify-center text-white mx-auto mb-4 animate-pulse shadow-sm">
-            <Shield size={24} />
+      <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-slate-50 to-white">
+        <div className="relative">
+          {/* Animated Logo */}
+          <div className="relative w-20 h-20 mb-6">
+            <div className="absolute inset-0 bg-slate-900 rounded-2xl rotate-12 animate-pulse" />
+            <div className="absolute inset-[3px] bg-slate-800 rounded-xl rotate-12" />
+            <div className="absolute inset-0 flex items-center justify-center">
+              <Gem size={24} className="text-amber-400 animate-pulse" />
+            </div>
+            <div className="absolute -top-2 -right-2 w-3 h-3 bg-emerald-500 rounded-full animate-ping" />
           </div>
-          <p className="text-sm text-gray-400">Loading GeonPayGuard...</p>
+          
+          {/* Loading Text */}
+          <div className="text-center space-y-3">
+            <p className="text-sm font-medium text-slate-900">GeonPayGuard</p>
+            <div className="flex items-center justify-center gap-1">
+              <div className="w-2 h-2 bg-amber-500 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+              <div className="w-2 h-2 bg-amber-500 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+              <div className="w-2 h-2 bg-amber-500 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+            </div>
+          </div>
         </div>
       </div>
     );
@@ -263,61 +339,66 @@ function LayoutContent({ children }: { children: React.ReactNode }) {
 
   const getRoleColor = (role: UserRole) => {
     switch(role) {
-      case 'admin': return 'bg-purple-100 text-purple-700';
-      case 'business': return 'bg-rose-100 text-rose-700';
-      default: return 'bg-blue-100 text-blue-600';
+      case 'admin': return 'bg-purple-100 text-purple-700 border-purple-200';
+      case 'business': return 'bg-amber-100 text-amber-700 border-amber-200';
+      default: return 'bg-emerald-100 text-emerald-700 border-emerald-200';
     }
   };
 
+  const getRoleIcon = (role: UserRole) => {
+    switch(role) {
+      case 'admin': return Shield;
+      case 'business': return Briefcase;
+      default: return User;
+    }
+  };
+
+  const RoleIcon = getRoleIcon(currentUser.role);
+
   return (
-    <div className="min-h-screen flex flex-col bg-gray-50">
+    <div className="min-h-screen flex flex-col bg-slate-50">
       {/* Header */}
-      <header className="sticky top-0 z-50 bg-white border-b border-gray-100">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between">
+      <header className={`sticky top-0 z-50 transition-all duration-300 ${
+        scrolled 
+          ? 'bg-white/90 backdrop-blur-xl border-b border-slate-200/50 shadow-sm' 
+          : 'bg-white border-b border-slate-100'
+      }`}>
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
 
           {/* Logo & Mobile Menu */}
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
             <button
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              className="lg:hidden p-2 hover:bg-gray-100 rounded-lg transition"
+              className="lg:hidden p-2 hover:bg-slate-100 rounded-lg transition"
               aria-label="Toggle menu"
             >
-              {mobileMenuOpen ? <X size={18} /> : <Menu size={18} />}
+              {mobileMenuOpen ? <X size={20} className="text-slate-600" /> : <Menu size={20} className="text-slate-600" />}
             </button>
 
-            <Link href="/" className="flex items-center gap-2.5 group">
+            <Link href="/" className="hidden sm:block">
               <GeonLogo />
-              <div className="flex flex-col">
-                <span className="font-semibold text-sm text-gray-900 leading-tight">
-                  GEON<span className="font-light">PAYGUARD</span>
-                </span>
-                <span className="text-[8px] text-gray-400 leading-tight hidden sm:block">
-                  Secure Payment Vaults
-                </span>
-              </div>
             </Link>
-          </div>
-
-          {/* Mobile Page Title */}
-          <div className="lg:hidden flex items-center gap-1 text-sm text-gray-500">
-            <span className="truncate max-w-[150px]">{currentPage}</span>
-            <ChevronRight size={14} className="text-gray-300" />
+            <Link href="/" className="sm:hidden">
+              <GeonLogoMini />
+            </Link>
           </div>
 
           {/* Desktop Navigation */}
           <nav className="hidden lg:flex items-center gap-1 flex-1 justify-center">
             {navItems.map(item => {
+              const Icon = item.icon;
               const active = pathname === item.href || pathname?.startsWith(item.href + '/');
               return (
                 <Link
                   key={item.href}
                   href={item.href}
-                  className={`px-3 py-1.5 text-sm font-medium rounded-lg transition ${
+                  className={`flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-xl transition-all ${
                     active
-                      ? 'text-gray-900 bg-gray-100'
-                      : 'text-gray-500 hover:text-gray-900 hover:bg-gray-50'
+                      ? 'text-slate-900 bg-slate-100 shadow-sm'
+                      : 'text-slate-500 hover:text-slate-900 hover:bg-slate-50'
                   }`}
                 >
+                  <Icon size={16} className={active ? 'text-amber-500' : 'text-slate-400'} />
                   {item.label}
                 </Link>
               );
@@ -325,13 +406,13 @@ function LayoutContent({ children }: { children: React.ReactNode }) {
           </nav>
 
           {/* Right Section */}
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-3">
 
             {/* Notifications */}
             <div className="relative">
               <NotificationBell userId={currentUser.id} />
               {unreadCount > 0 && (
-                <span className="absolute -top-1 -right-1 w-4 h-4 text-[10px] bg-rose-500 text-white rounded-full flex items-center justify-center ring-2 ring-white">
+                <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] text-[10px] bg-amber-500 text-white font-bold rounded-full flex items-center justify-center ring-2 ring-white shadow-sm">
                   {unreadCount > 9 ? '9+' : unreadCount}
                 </span>
               )}
@@ -340,40 +421,49 @@ function LayoutContent({ children }: { children: React.ReactNode }) {
             {/* Settings */}
             <Link
               href="/settings"
-              className="hidden sm:flex p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition"
+              className="hidden sm:flex p-2.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-xl transition"
               title="Settings"
             >
               <SettingsIcon size={18} />
             </Link>
 
             {/* User Menu - Desktop */}
-            <div className="hidden sm:flex items-center gap-3">
-              <div className="h-6 w-px bg-gray-200" />
-              <div className="flex items-center gap-2">
-                <div className="text-right">
-                  <p className="text-xs font-medium text-gray-900">{currentUser.fullName}</p>
-                  <p className={`text-[10px] px-2 py-0.5 rounded-full ${getRoleColor(currentUser.role)}`}>
+            <div className="hidden md:flex items-center gap-3">
+              <div className="h-6 w-px bg-slate-200" />
+              <div className="flex items-center gap-3">
+                {/* Role Badge */}
+                <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full border ${getRoleColor(currentUser.role)}`}>
+                  <RoleIcon size={12} />
+                  <span className="text-[10px] font-semibold uppercase tracking-wider">
                     {currentUser.role}
-                  </p>
+                  </span>
                 </div>
+                
+                {/* User Info */}
+                <div className="text-right">
+                  <p className="text-sm font-semibold text-slate-900">{currentUser.fullName}</p>
+                  <p className="text-[10px] text-slate-400">{currentUser.email}</p>
+                </div>
+                
+                {/* Logout Button */}
                 <button
                   onClick={handleLogout}
-                  className="p-2 text-gray-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"
+                  className="p-2.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition group relative"
                   title="Sign out"
                 >
-                  <LogOut size={18} />
+                  <LogOut size={18} className="group-hover:scale-110 transition-transform" />
                 </button>
               </div>
             </div>
 
-            {/* Mobile Menu Toggle (hidden on desktop) */}
-            <div className="sm:hidden">
+            {/* Mobile Menu Button (hidden on desktop) */}
+            <div className="md:hidden">
               <button
                 onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-                className="p-2 hover:bg-gray-100 rounded-lg transition"
+                className="p-2.5 hover:bg-slate-100 rounded-xl transition"
                 aria-label="Toggle menu"
               >
-                {mobileMenuOpen ? <X size={18} /> : <Menu size={18} />}
+                <User size={20} className="text-slate-600" />
               </button>
             </div>
 
@@ -382,47 +472,68 @@ function LayoutContent({ children }: { children: React.ReactNode }) {
 
         {/* Mobile Menu */}
         {mobileMenuOpen && (
-          <div className="lg:hidden border-t border-gray-100 bg-white">
-            <div className="px-4 py-2 space-y-1">
-              {navItems.map(item => (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  onClick={() => setMobileMenuOpen(false)}
-                  className="flex items-center justify-between px-4 py-3 text-sm text-gray-600 hover:text-gray-900 hover:bg-gray-50 rounded-lg transition"
-                >
-                  {item.label}
-                  <ChevronRight size={14} className="text-gray-400" />
-                </Link>
-              ))}
+          <div className="lg:hidden border-t border-slate-100 bg-white/95 backdrop-blur-lg">
+            <div className="px-4 py-3 space-y-1">
+              {/* User Profile Card */}
+              <div className="mb-4 p-4 bg-gradient-to-br from-slate-50 to-white rounded-xl border border-slate-200">
+                <div className="flex items-center gap-3">
+                  <div className="w-12 h-12 bg-gradient-to-br from-slate-800 to-slate-900 rounded-xl flex items-center justify-center shadow-lg">
+                    <RoleIcon size={20} className="text-white" />
+                  </div>
+                  <div className="flex-1">
+                    <p className="font-semibold text-slate-900">{currentUser.fullName}</p>
+                    <p className="text-xs text-slate-400">{currentUser.email}</p>
+                  </div>
+                  <div className={`px-2 py-1 rounded-full text-[9px] font-bold uppercase tracking-wider border ${getRoleColor(currentUser.role)}`}>
+                    {currentUser.role}
+                  </div>
+                </div>
+              </div>
+
+              {/* Navigation Items */}
+              {navItems.map(item => {
+                const Icon = item.icon;
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    onClick={() => setMobileMenuOpen(false)}
+                    className="flex items-center justify-between px-4 py-3 text-sm text-slate-600 hover:text-slate-900 hover:bg-slate-50 rounded-xl transition group"
+                  >
+                    <div className="flex items-center gap-3">
+                      <Icon size={18} className="text-slate-400 group-hover:text-amber-500" />
+                      <span>{item.label}</span>
+                    </div>
+                    <ChevronRight size={16} className="text-slate-300 group-hover:text-amber-500" />
+                  </Link>
+                );
+              })}
+
+              {/* Settings Link */}
               <Link
                 href="/settings"
                 onClick={() => setMobileMenuOpen(false)}
-                className="flex items-center justify-between px-4 py-3 text-sm text-gray-600 hover:text-gray-900 hover:bg-gray-50 rounded-lg transition"
+                className="flex items-center justify-between px-4 py-3 text-sm text-slate-600 hover:text-slate-900 hover:bg-slate-50 rounded-xl transition group"
               >
-                Settings
-                <SettingsIcon size={14} className="text-gray-400" />
-              </Link>
-              <div className="border-t border-gray-100 my-2 pt-2">
-                <div className="px-4 py-3 flex items-center gap-3">
-                  <div className="w-8 h-8 bg-rose-100 rounded-full flex items-center justify-center">
-                    <User size={14} className="text-rose-600" />
-                  </div>
-                  <div className="flex-1">
-                    <p className="text-sm font-medium text-gray-900">{currentUser.fullName}</p>
-                    <p className="text-xs text-gray-400">{currentUser.email}</p>
-                  </div>
-                  <button
-                    onClick={() => {
-                      handleLogout();
-                      setMobileMenuOpen(false);
-                    }}
-                    className="p-2 text-rose-600 hover:bg-rose-50 rounded-lg"
-                    title="Sign out"
-                  >
-                    <LogOut size={16} />
-                  </button>
+                <div className="flex items-center gap-3">
+                  <SettingsIcon size={18} className="text-slate-400 group-hover:text-amber-500" />
+                  <span>Settings</span>
                 </div>
+                <ChevronRight size={16} className="text-slate-300 group-hover:text-amber-500" />
+              </Link>
+
+              {/* Logout Button */}
+              <div className="border-t border-slate-100 mt-3 pt-3">
+                <button
+                  onClick={() => {
+                    handleLogout();
+                    setMobileMenuOpen(false);
+                  }}
+                  className="w-full flex items-center gap-3 px-4 py-3 text-sm text-rose-600 hover:bg-rose-50 rounded-xl transition group"
+                >
+                  <LogOut size={18} className="group-hover:scale-110 transition-transform" />
+                  <span>Sign Out</span>
+                </button>
               </div>
             </div>
           </div>
@@ -431,17 +542,46 @@ function LayoutContent({ children }: { children: React.ReactNode }) {
 
       {/* Main Content */}
       <main className="flex-1">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8">
+          {/* Page Header - Mobile Only */}
+          <div className="lg:hidden mb-4">
+            <h1 className="text-xl font-bold text-slate-900">{currentPage}</h1>
+            <p className="text-xs text-slate-400 mt-1">
+              {new Date().toLocaleDateString('en-US', { 
+                weekday: 'long', 
+                year: 'numeric', 
+                month: 'long', 
+                day: 'numeric' 
+              })}
+            </p>
+          </div>
+          
           {children}
         </div>
       </main>
 
       {/* Footer */}
-      <footer className="border-t border-gray-100 bg-white py-4">
+      <footer className="border-t border-slate-200 bg-white py-4">
         <div className="max-w-7xl mx-auto px-4 sm:px-6">
-          <p className="text-xs text-gray-400 text-center">
-            © {new Date().getFullYear()} GeonPayGuard. All rights reserved. Secure payment vaults for creators and brands.
-          </p>
+          <div className="flex flex-col md:flex-row justify-between items-center gap-3">
+            <div className="flex items-center gap-4">
+              <Link href="/" className="text-xs text-slate-400 hover:text-slate-600 transition-colors">
+                Home
+              </Link>
+              <span className="text-slate-300">•</span>
+              <Link href="/terms" className="text-xs text-slate-400 hover:text-slate-600 transition-colors">
+                Terms
+              </Link>
+              <span className="text-slate-300">•</span>
+              <Link href="/privacy" className="text-xs text-slate-400 hover:text-slate-600 transition-colors">
+                Privacy
+              </Link>
+            </div>
+            <p className="text-xs text-slate-400">
+              © {new Date().getFullYear()} GeonPayGuard. All rights reserved. 
+              <span className="hidden sm:inline"> Secure payment vaults for creators and brands.</span>
+            </p>
+          </div>
         </div>
       </footer>
     </div>
