@@ -141,7 +141,7 @@ async def get_mpesa_token() -> str:
             if response.status_code == 200:
                 result = response.json()
                 token = result.get("access_token")
-                expires_in = result.get("expires_in", 3600)  # Default 1 hour
+                expires_in = int(result.get("expires_in", 3600))  # Default 1 hour
                 
                 if not token:
                     logger.error(f"M-Pesa token response missing token field: {result}")
