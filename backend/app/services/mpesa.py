@@ -32,6 +32,13 @@ MPESA_B2C_CALLBACK_URL = os.getenv("MPESA_B2C_CALLBACK_URL", "")
 # Security credential (encrypted password) - can be set directly or generated
 MPESA_SECURITY_CREDENTIAL = os.getenv("MPESA_SECURITY_CREDENTIAL", "")
 
+# Token cache
+_mpesa_token_cache = {
+    "token": None,
+    "expires_at": 0
+}
+CACHE_DURATION = 300  # Token valid for 5 minutes
+
 
 def get_mpesa_credentials() -> Dict[str, str]:
     """Get M-Pesa credentials."""
@@ -102,8 +109,16 @@ def generate_security_credential() -> str:
 
 async def get_mpesa_token() -> str:
     """
-    Get M-Pesa OAuth token.
+    Get M-Pesa OAuth token with caching.
     """
+    global _mpesa_token_cache
+    
+    # Check if we have a valid cached token
+    current_time = time.time()
+    if _mpesa_token_cache["token"] and _mpesa_token_cache["expires_at"] > current_time:
+        logger.info("Using cached M-Pesa token")
+        return _mpesa_token_cache["token"]
+    
     try:
         creds = get_mpesa_credentials()
         url = f"{MPESA_BASE_URL}/oauth/v1/generate?grant_type=client_credentials"
@@ -126,10 +141,17 @@ async def get_mpesa_token() -> str:
             if response.status_code == 200:
                 result = response.json()
                 token = result.get("access_token")
+                expires_in = result.get("expires_in", 3600)  # Default 1 hour
+                
                 if not token:
                     logger.error(f"M-Pesa token response missing token field: {result}")
                     raise HTTPException(status_code=400, detail="Failed to get M-Pesa token: no token in response")
-                logger.info("M-Pesa token obtained successfully")
+                
+                # Cache the token
+                _mpesa_token_cache["token"] = token
+                _mpesa_token_cache["expires_at"] = current_time + min(expires_in - 60, CACHE_DURATION)
+                
+                logger.info(f"M-Pesa token obtained successfully, expires in {expires_in}s")
                 return token
             else:
                 logger.error(f"M-Pesa token error: {response.status_code} - {response.text}")
