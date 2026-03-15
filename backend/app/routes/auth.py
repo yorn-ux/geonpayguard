@@ -621,9 +621,10 @@ async def self_lock_account(
         db=db,
         operator_id=user.operator_id,
         title="Account Self-Locked",
-        message="You have locked your own account for security reasons.",
+        message="You have locked your own account for security reasons. Click to view your account status.",
         priority="HIGH",
-        category="security"
+        category="security",
+        action_url="/auth/locked"
     )
     
     # Send confirmation email

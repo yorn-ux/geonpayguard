@@ -29,6 +29,39 @@ export default function BusinessSettings({ data }: any) {
   // Edit states
   const [editingField, setEditingField] = useState<string | null>(null);
   const [editingValue, setEditingValue] = useState('');
+  const [isFreezing, setIsFreezing] = useState(false);
+
+  const freezeAccount = async () => {
+    setIsFreezing(true);
+    try {
+      const token = localStorage.getItem('auth_token');
+      const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+      
+      const response = await fetch(`${API_URL}/api/v1/auth/security-lock/self`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        localStorage.removeItem('auth_token');
+        localStorage.removeItem('geon_user');
+        document.cookie = 'geon_token=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT';
+        document.cookie = 'user_role=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT';
+        window.location.href = `/auth/locked?token=${data.lock_token}`;
+      } else {
+        alert('Failed to freeze account. Please try again or contact support.');
+      }
+    } catch (error) {
+      console.error('Freeze account error:', error);
+      alert('An error occurred. Please contact support.');
+    } finally {
+      setIsFreezing(false);
+    }
+  };
 
   // Get user identity
   useEffect(() => {
@@ -665,6 +698,31 @@ export default function BusinessSettings({ data }: any) {
                   onSave={() => saveEdit('payout_method')}
                   onCancel={cancelEditing}
                 />
+              </div>
+
+              {/* Freeze Account - Danger Zone */}
+              <div className="bg-red-50 border border-red-200 rounded-lg p-5 mt-6">
+                <div className="flex items-start gap-4">
+                  <div className="w-10 h-10 bg-red-100 rounded-full flex items-center justify-center flex-shrink-0">
+                    <Lock className="text-red-600" size={20} />
+                  </div>
+                  <div className="flex-1">
+                    <h3 className="text-sm font-medium text-red-900">Freeze Account</h3>
+                    <p className="text-xs text-red-700 mt-1">
+                      Temporarily lock your account. You can unlock it by contacting support.
+                    </p>
+                    <button 
+                      onClick={() => {
+                        if (confirm('Are you sure you want to freeze your account? You will be logged out and need to contact support to unlock it.')) {
+                          freezeAccount();
+                        }
+                      }}
+                      className="mt-3 px-4 py-2 bg-red-600 text-white rounded-lg text-sm font-medium hover:bg-red-700 transition-colors"
+                    >
+                      Freeze My Account
+                    </button>
+                  </div>
+                </div>
               </div>
             </div>
           )}
