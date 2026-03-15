@@ -579,6 +579,65 @@ async def get_withdrawal_status(
         "created_at": transaction.created_at.isoformat()
     }
 
+@router.get("/deposit/status/{transaction_id}")
+async def get_deposit_status(
+    transaction_id: str,
+    current_user: dict = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Check status of a deposit transaction"""
+    user_op_id = current_user["operator_id"]
+    wallet = db.query(Wallet).filter(Wallet.operator_id == user_op_id).first()
+    
+    if not wallet:
+        raise HTTPException(404, "Wallet not found")
+    
+    transaction = db.query(Transaction).filter(
+        Transaction.id == transaction_id,
+        Transaction.wallet_id == wallet.id
+    ).first()
+    
+    if not transaction:
+        # Try finding by provider_ref (order_tracking_id)
+        transaction = db.query(Transaction).filter(
+            Transaction.provider_ref == transaction_id,
+            Transaction.wallet_id == wallet.id
+        ).first()
+    
+    if not transaction:
+        raise HTTPException(404, "Transaction not found")
+    
+    # If processing, check with PesaPal
+    if transaction.status == TransactionStatus.PROCESSING and transaction.provider_ref:
+        from ..services.pesapal import check_pesapal_status
+        try:
+            result = await check_pesapal_status(transaction.provider_ref)
+            
+            # Update status based on PesaPal response
+            if result.get("complete") or result.get("status") == "COMPLETED":
+                transaction.status = TransactionStatus.COMPLETED
+                transaction.completed_at = datetime.utcnow()
+                # Add funds to wallet
+                wallet.kes_balance += transaction.net_amount
+                db.commit()
+            elif result.get("status") == "FAILED":
+                transaction.status = TransactionStatus.FAILED
+                transaction.failure_reason = result.get("reason", "Payment failed")
+                db.commit()
+        except Exception as e:
+            print(f"Error checking deposit status: {e}")
+    
+    return {
+        "id": transaction.id,
+        "status": transaction.status.value,
+        "payment_status": transaction.status.value,
+        "amount": float(transaction.amount),
+        "fee": float(transaction.fee) if transaction.fee else 0,
+        "tx_ref": transaction.tx_ref,
+        "provider_ref": transaction.provider_ref,
+        "created_at": transaction.created_at.isoformat()
+    }
+
 # --- 5. CONVERSION ROUTES ---
 
 @router.post("/wallet/convert")

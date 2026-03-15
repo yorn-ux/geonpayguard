@@ -120,7 +120,8 @@ export default function AddFundsModal({ isOpen, onClose, onSuccess }: AddFundsMo
       const token = getAuthToken();
       const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
       
-      const res = await fetch(`${API_URL}/api/v1/wallet/transaction/status/${invoiceId}`, {
+      // Try deposit status endpoint first, then fallback to transaction lookup
+      const res = await fetch(`${API_URL}/api/v1/wallet/deposit/status/${invoiceId}`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       
@@ -230,14 +231,16 @@ export default function AddFundsModal({ isOpen, onClose, onSuccess }: AddFundsMo
         setInvoiceId(result.invoice_id);
       } else if (result.tracking_id) {
         setInvoiceId(result.tracking_id);
+      } else if (result.order_tracking_id) {
+        setInvoiceId(result.order_tracking_id);
       } else if (result.tx_id) {
         setInvoiceId(result.tx_id);
       }
 
       setStep('processing');
 
-      if (result.invoice_id || result.tracking_id || result.tx_id) {
-        startPolling(result.invoice_id || result.tracking_id || result.tx_id);
+      if (result.invoice_id || result.tracking_id || result.order_tracking_id || result.tx_id) {
+        startPolling(result.invoice_id || result.tracking_id || result.order_tracking_id || result.tx_id);
       } else {
         setTimeout(() => {
           setStep('success');
