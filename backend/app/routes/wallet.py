@@ -15,7 +15,7 @@ from ..models.wallet import Wallet, Transaction, TransactionType, TransactionSta
 from .auth import get_current_user
 
 # PesaPal API Configuration
-PESAPAL_BASE_URL = os.getenv("PESAPAL_BASE_URL", "https://cybqa.pesapal.com")
+PESAPAL_BASE_URL = os.getenv("PESAPAL_BASE_URL", "https://pay.pesapal.com")
 PESAPAL_CONSUMER_KEY = os.getenv("PESAPAL_CONSUMER_KEY", "")
 PESAPAL_CONSUMER_SECRET = os.getenv("PESAPAL_CONSUMER_SECRET", "")
 

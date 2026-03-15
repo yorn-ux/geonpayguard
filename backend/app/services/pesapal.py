@@ -11,7 +11,7 @@ from fastapi import HTTPException
 logger = logging.getLogger(__name__)
 
 # PesaPal API Configuration
-PESAPAL_BASE_URL = os.getenv("PESAPAL_BASE_URL", "https://cybqa.pesapal.com")  # Sandbox
+PESAPAL_BASE_URL = os.getenv("PESAPAL_BASE_URL", "https://pay.pesapal.com")  # Production
 # PESAPAL_BASE_URL = "https://pay.pesapal.com"  # Production
 
 PESAPAL_CONSUMER_KEY = os.getenv("PESAPAL_CONSUMER_KEY", "")
@@ -76,15 +76,19 @@ async def get_pesapal_token() -> str:
         async with httpx.AsyncClient() as client:
             response = await client.post(url, json=payload, timeout=30)
             
+            logger.info(f"PesaPal token request response: {response.status_code} - {response.text}")
+            
             if response.status_code == 200:
                 result = response.json()
-                token = result.get("token")
+                # PesaPal returns token in different formats depending on API version
+                token = result.get("token") or result.get("access_token")
                 if not token:
-                    raise HTTPException(status_code=400, detail="Failed to get PesaPal token")
+                    logger.error(f"PesaPal token response missing token field: {result}")
+                    raise HTTPException(status_code=400, detail="Failed to get PesaPal token: no token in response")
                 return token
             else:
-                logger.error(f"PesaPal token error: {response.text}")
-                raise HTTPException(status_code=400, detail="Failed to authenticate with PesaPal")
+                logger.error(f"PesaPal token error: {response.status_code} - {response.text}")
+                raise HTTPException(status_code=400, detail=f"Failed to authenticate with PesaPal: {response.text[:100]}")
                 
     except httpx.RequestError as e:
         logger.error(f"PesaPal network error: {str(e)}")
@@ -122,6 +126,8 @@ async def submit_pesapal_order(
         # Generate unique reference
         creds = get_pesapal_credentials()
         
+        # Use registered IPN ID if available, otherwise omit (PesaPal will use callback_url)
+        ipn_id = os.getenv("PESAPAL_IPN_ID", "")
         payload = {
             "consumer_key": creds["consumer_key"],
             "signature_method": "SHA256",
@@ -133,17 +139,26 @@ async def submit_pesapal_order(
             "type": "MERCHANT",
             "reference": order_id,
             "phone_number": formatted_phone,
-            "callback_url": PESAPAL_CALLBACK_URL or f"{os.getenv('APP_DOMAIN', '')}/api/webhooks/pesapal",
-            "ipn_notification_id": PESAPAL_IPN_URL,
-            "account_number": reference[:20]
+            "callback_url": PESAPAL_CALLBACK_URL or f"{os.getenv('APP_DOMAIN', '')}/api/webhooks/pesapal"
         }
         
-        # Add signature
+        # Only add ipn_notification_id if we have a registered IPN ID
+        if ipn_id:
+            payload["ipn_notification_id"] = ipn_id
+        
+        payload["account_number"] = reference[:20]
+        
+        # Generate signature
         signature_string = f"{creds['consumer_key']}{payload['reference']}{payload['amount']}{payload['currency']}{creds['consumer_secret']}"
         payload["signature"] = hashlib.sha256(signature_string.encode()).hexdigest()
         
+        logger.info(f"PesaPal order request: {url}")
+        logger.info(f"PesaPal order payload: {json.dumps(payload)}")
+        
         async with httpx.AsyncClient() as client:
             response = await client.post(url, json=payload, headers=headers, timeout=30)
+            
+            logger.info(f"PesaPal order response: {response.status_code} - {response.text}")
             
             if response.status_code == 200:
                 result = response.json()
