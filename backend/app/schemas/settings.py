@@ -35,9 +35,9 @@ class ProfileData(BaseModel):
 
 class PaymentData(BaseModel):
     """User payment settings"""
-    mpesa_number: Optional[str] = None
-    payout_account: Optional[str] = None
-    payout_method: Optional[str] = "M-Pesa"
+    paypal_email: Optional[str] = None
+    crypto_address: Optional[str] = None
+    payout_method: Optional[str] = "paypal"
     min_threshold: Optional[float] = 1000.0
     min_payout_threshold: Optional[float] = 1000.0
     auto_withdraw: Optional[bool] = False

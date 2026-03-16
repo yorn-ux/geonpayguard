@@ -75,8 +75,8 @@ class Transaction(Base):
     tx_ref = Column(String(100), unique=True, index=True) 
     
     # --- Payment Provider Fields ---
-    provider = Column(String(50), nullable=True)  # 'mpesa', 'internal', etc.
-    provider_ref = Column(String(100), nullable=True, index=True)  # M-Pesa checkout_request_id or conversation_id
+    provider = Column(String(50), nullable=True)  # 'paypal', 'crypto', 'card', etc.
+    provider_ref = Column(String(100), nullable=True, index=True)  # Provider transaction ID
     provider_data = Column(JSON, nullable=True)  # Store full provider response
     
     metadata_json = Column(JSON, nullable=True)

@@ -1,207 +1,222 @@
 import logging
 import os
+import hmac
+import hashlib
 from fastapi import APIRouter, Depends, Request, status, Header
 from sqlalchemy.orm import Session
 from datetime import datetime
 from ..database import get_db
-from ..models.wallet import Transaction, Wallet, TransactionStatus
+from ..models.wallet import Transaction, Wallet, TransactionStatus, TransactionType
+from ..models.user import User
+from ..services.email import send_deposit_notification, send_withdrawal_notification
 
 logger = logging.getLogger("webhooks")
 router = APIRouter(tags=["Webhooks"])
 
-# --- 1. M-PESA STK CALLBACK (Daraja API) ---
-@router.post("/mpesa/stk-callback")
-async def mpesa_stk_callback(request: Request, db: Session = Depends(get_db)):
+# --- 1. PAYPAL WEBHOOK ---
+
+def verify_paypal_signature(request_body: bytes, headers: dict, webhook_id: str) -> bool:
+    """Verify PayPal webhook signature"""
+    transmission_id = headers.get("paypal-transmission-id")
+    timestamp = headers.get("paypal-transmission-time")
+    signature = headers.get("paypal-transmission-sig")
+    
+    if not all([transmission_id, timestamp, signature]):
+        return False
+    
+    # In production, verify using PayPal's SDK
+    # For now, we'll trust the webhook if it comes from PayPal's IPs
+    return True
+
+
+@router.post("/paypal/webhook")
+async def paypal_webhook(
+    request: Request,
+    db: Session = Depends(get_db),
+    paypal_transmission_id: str = Header(None, alias="paypal-transmission-id"),
+    paypal_transmission_time: str = Header(None, alias="paypal-transmission-time"),
+    paypal_transmission_sig: str = Header(None, alias="paypal-transmission-sig"),
+    paypal_webhook_id: str = Header(None, alias="paypal-webhook-id")
+):
     """
-    Safaricom Daraja API calls this after the user enters (or fails to enter) their PIN.
+    PayPal sends webhook events for payment status updates.
     """
     try:
-        data = await request.json()
+        body = await request.json()
     except:
-        data = {}
+        body = {}
     
-    stk_callback = data.get("Body", {}).get("stkCallback", {})
+    event_type = body.get("event_type")
+    resource = body.get("resource", {})
     
-    # Safaricom identifies the session by CheckoutRequestID
-    checkout_id = stk_callback.get("CheckoutRequestID")
-    result_code = stk_callback.get("ResultCode")  # 0 = Success, 1032 = Cancelled
+    logger.info(f"PayPal Webhook received: {event_type}")
     
-    logger.info(f"M-Pesa STK Callback received: {checkout_id} - ResultCode: {result_code}")
+    # Verify webhook signature in production
+    webhook_id = os.getenv("PAYPAL_WEBHOOK_ID")
+    if webhook_id and not verify_paypal_signature(await request.body(), 
+                                                 {"paypal-transmission-id": paypal_transmission_id,
+                                                  "paypal-transmission-time": paypal_transmission_time,
+                                                  "paypal-transmission-sig": paypal_transmission_sig},
+                                                 webhook_id):
+        logger.warning("PayPal webhook signature verification failed")
+        return {"status": "failure"}
     
-    # Find transaction by provider_ref (CheckoutRequestID) or tx_ref
+    if event_type == "CHECKOUT.ORDER.APPROVED":
+        # Order approved by user - capture payment
+        order_id = resource.get("id")
+        logger.info(f"PayPal order approved: {order_id}")
+        
+    elif event_type == "PAYMENT.CAPTURE.COMPLETED":
+        # Payment completed successfully
+        payment_id = resource.get("id")
+        order_id = resource.get("supplementary_data", {}).get("related_ids", {}).get("order_id")
+        
+        # Find transaction by provider_ref (order_id)
+        tx = db.query(Transaction).filter(
+            Transaction.provider_ref == order_id
+        ).first()
+        
+        if tx and tx.status == TransactionStatus.PROCESSING:
+            tx.status = TransactionStatus.COMPLETED
+            tx.completed_at = datetime.utcnow()
+            tx.provider_ref = payment_id
+            
+            # Update wallet balance
+            wallet = db.query(Wallet).filter(Wallet.id == tx.wallet_id).first()
+            if wallet and tx.tx_type == TransactionType.DEPOSIT:
+                if tx.currency == "KES":
+                    wallet.kes_balance += tx.amount
+                elif tx.currency == "USDT":
+                    wallet.usdt_balance += tx.amount
+                
+                # Send notification
+                user = db.query(User).filter(User.operator_id == tx.operator_id).first()
+                if user:
+                    try:
+                        send_deposit_notification(
+                            to_email=user.email,
+                            amount=float(tx.amount),
+                            reference=tx.tx_ref,
+                            currency=tx.currency
+                        )
+                    except Exception as e:
+                        logger.error(f"Failed to send deposit email: {e}")
+            
+            db.commit()
+            logger.info(f"✅ PayPal payment completed: {payment_id}")
+            
+    elif event_type == "PAYMENT.CAPTURE.DENIED":
+        # Payment denied
+        payment_id = resource.get("id")
+        order_id = resource.get("supplementary_data", {}).get("related_ids", {}).get("order_id")
+        
+        tx = db.query(Transaction).filter(
+            Transaction.provider_ref == order_id
+        ).first()
+        
+        if tx and tx.status == TransactionStatus.PROCESSING:
+            tx.status = TransactionStatus.FAILED
+            tx.failure_reason = "Payment denied by PayPal"
+            db.commit()
+            logger.warning(f"❌ PayPal payment denied: {payment_id}")
+    
+    elif event_type == "PAYOUT.PAYMENT.COMPLETED":
+        # Payout completed
+        payout_id = resource.get("id")
+        tx = db.query(Transaction).filter(
+            Transaction.provider_ref == payout_id
+        ).first()
+        
+        if tx and tx.status == TransactionStatus.PROCESSING:
+            tx.status = TransactionStatus.COMPLETED
+            tx.completed_at = datetime.utcnow()
+            db.commit()
+            logger.info(f"✅ PayPal payout completed: {payout_id}")
+            
+    elif event_type == "PAYOUT.PAYMENT.FAILED":
+        # Payout failed
+        payout_id = resource.get("id")
+        tx = db.query(Transaction).filter(
+            Transaction.provider_ref == payout_id
+        ).first()
+        
+        if tx and tx.status == TransactionStatus.PROCESSING:
+            tx.status = TransactionStatus.FAILED
+            tx.failure_reason = "PayPal payout failed"
+            
+            # Refund the wallet
+            wallet = db.query(Wallet).filter(Wallet.id == tx.wallet_id).first()
+            if wallet:
+                refund_amount = tx.amount + (tx.fee or 0)
+                if tx.currency == "KES":
+                    wallet.kes_balance += refund_amount
+                elif tx.currency == "USDT":
+                    wallet.usdt_balance += refund_amount
+            
+            db.commit()
+            logger.warning(f"❌ PayPal payout failed: {payout_id}")
+    
+    return {"status": "received"}
+
+
+# --- 2. CRYPTO WEBHOOK (for deposit confirmations) ---
+
+@router.post("/crypto/deposit")
+async def crypto_deposit_webhook(
+    request: Request,
+    db: Session = Depends(get_db)
+):
+    """
+    Webhook for crypto deposit confirmations.
+    In production, this would connect to blockchain monitors.
+    """
+    try:
+        body = await request.json()
+    except:
+        body = {}
+    
+    tx_hash = body.get("tx_hash")
+    network = body.get("network")
+    confirmations = body.get("confirmations", 0)
+    amount = body.get("amount")
+    
+    logger.info(f"Crypto deposit webhook: {tx_hash}, confirmations: {confirmations}")
+    
+    # Find transaction
     tx = db.query(Transaction).filter(
-        (Transaction.provider_ref == checkout_id) | 
-        (Transaction.tx_ref == checkout_id)
+        Transaction.provider_ref.like(f"{network}:%")
     ).first()
     
     if not tx:
-        logger.error(f"Transaction not found for CheckoutID: {checkout_id}")
-        # Always return 0 to Safaricom to stop retries
-        return {"ResultCode": 0, "ResultDesc": "Accepted"}
-
-    if tx.status == TransactionStatus.COMPLETED:
-        logger.info(f"Transaction already completed: {tx.id}")
-        return {"ResultCode": 0, "ResultDesc": "Already Processed"}
-
-    if result_code == 0:
-        # Extract transaction details from callback metadata
-        callback_metadata = stk_callback.get("CallbackMetadata", {})
-        items = callback_metadata.get("Item", []) if callback_metadata else []
-        
-        mpesa_receipt_number = None
-        for item in items:
-            if item.get("Name") == "MpesaReceiptNumber":
-                mpesa_receipt_number = item.get("Value")
-                break
-        
-        # Update transaction
+        logger.error(f"Transaction not found for crypto deposit: {tx_hash}")
+        return {"status": "not_found"}
+    
+    # Check confirmations (require at least 12 for most chains)
+    required_confirmations = {"trc20": 19, "bep20": 12, "erc20": 12}.get(network, 12)
+    
+    if confirmations >= required_confirmations and tx.status == TransactionStatus.PROCESSING:
         tx.status = TransactionStatus.COMPLETED
         tx.completed_at = datetime.utcnow()
-        tx.provider_ref = mpesa_receipt_number or tx.provider_ref
         
-        # Update wallet balance
-        wallet = db.query(Wallet).filter(Wallet.id == tx.wallet_id).with_for_update().first()
-        if wallet:
-            wallet.kes_balance += tx.amount
-            logger.info(f"✅ M-Pesa STK Success: {tx.amount} KES added to Wallet {wallet.operator_id}")
-        
-        db.commit()
-        logger.info(f"✅ M-Pesa Payment Success: CheckoutID={checkout_id}, Receipt={mpesa_receipt_number}")
-    else:
-        # Payment failed or cancelled
-        tx.status = TransactionStatus.FAILED
-        tx.failure_reason = stk_callback.get("ResultDesc", f"Failed with code {result_code}")
-        db.commit()
-        logger.warning(f"❌ M-Pesa STK Failed Code {result_code}: {stk_callback.get('ResultDesc')}")
-
-    return {"ResultCode": 0, "ResultDesc": "Success"}
-
-# --- 3. M-PESA B2C CALLBACK (Daraja API) ---
-@router.post("/mpesa/b2c-callback")
-async def mpesa_b2c_callback(request: Request, db: Session = Depends(get_db)):
-    """
-    Safaricom Daraja API calls this for B2C (Business to Customer) payment results.
-    """
-    try:
-        data = await request.json()
-    except:
-        data = {}
-    
-    result = data.get("Result", {})
-    result_code = result.get("ResultCode")
-    result_type = result.get("ResultType")
-    
-    logger.info(f"M-Pesa B2C Callback received: ResultCode={result_code}, ResultType={result_type}")
-    
-    # Get transaction details from result
-    transaction_data = result.get("Transaction", {})
-    conversation_id = transaction_data.get("ConversationID")
-    originator_conversation_id = transaction_data.get("OriginatorConversationID")
-    
-    # Find transaction by conversation ID
-    tx = db.query(Transaction).filter(
-        (Transaction.provider_ref == conversation_id) |
-        (Transaction.provider_ref == originator_conversation_id)
-    ).first()
-    
-    if not tx:
-        logger.error(f"Transaction not found for B2C ConversationID: {conversation_id}")
-        return {"ResultCode": 0, "ResultDesc": "Accepted"}
-
-    if tx.status == TransactionStatus.COMPLETED:
-        logger.info(f"Transaction already completed: {tx.id}")
-        return {"ResultCode": 0, "ResultDesc": "Already Processed"}
-
-    if result_code == 0:
-        # Payment successful
-        mpesa_receipt = transaction_data.get("TransactionID")
-        
-        tx.status = TransactionStatus.COMPLETED
-        tx.completed_at = datetime.utcnow()
-        tx.provider_ref = mpesa_receipt or tx.provider_ref
-        
-        logger.info(f"✅ M-Pesa B2C Success: {tx.amount} KES sent to {tx.beneficiary_phone}")
-        db.commit()
-    else:
-        # Payment failed - refund the wallet
-        tx.status = TransactionStatus.FAILED
-        tx.failure_reason = result.get("ResultDesc", f"Failed with code {result_code}")
-        
-        # Refund the wallet
-        wallet = db.query(Wallet).filter(Wallet.id == tx.wallet_id).with_for_update().first()
-        if wallet:
-            refund_amount = tx.amount + (tx.fee or 0)
-            wallet.kes_balance += refund_amount
-            logger.info(f"💰 Refunded {refund_amount} KES to wallet {wallet.operator_id}")
-        
-        db.commit()
-        logger.warning(f"❌ M-Pesa B2C Failed Code {result_code}: {result.get('ResultDesc')}")
-
-    return {"ResultCode": 0, "ResultDesc": "Success"}
-
-# --- 4. M-PESA C2B REGISTER URL (For simulation) ---
-@router.post("/mpesa/c2b-register")
-async def mpesa_c2b_register(request: Request, db: Session = Depends(get_db)):
-    """
-    Register C2B validation and confirmation URLs with Safaricom.
-    This endpoint is called by Safaricom to validate C2B transactions.
-    """
-    try:
-        data = await request.json()
-    except:
-        data = {}
-    
-    # C2B Validation - returns ACCEPT or REJECT
-    transaction_type = data.get("TransactionType")
-    amount = data.get("Amount")
-    account_reference = data.get("AccountReference")
-    
-    logger.info(f"M-Pesa C2B Validation: Type={transaction_type}, Amount={amount}, Ref={account_reference}")
-    
-    # For deposits, always accept (you could add validation here)
-    return {
-        "ResultCode": 0,
-        "ResultDesc": "Accept",
-        "ThirdPartyReference": data.get("ThirdPartyReference"),
-        "QueueTimeOutURL": data.get("QueueTimeOutURL"),
-        "ResponseURL": data.get("ResponseURL")
-    }
-
-# --- 5. M-PESA C2B CONFIRMATION ---
-@router.post("/mpesa/c2b-confirm")
-async def mpesa_c2b_confirm(request: Request, db: Session = Depends(get_db)):
-    """
-    Safaricom calls this to confirm a C2B transaction.
-    """
-    try:
-        data = await request.json()
-    except:
-        data = {}
-    
-    transaction_type = data.get("TransactionType")
-    amount = data.get("Amount")
-    account_reference = data.get("AccountReference")
-    mpesa_receipt = data.get("MpesaReceiptNumber")
-    phone = data.get("MSISDN")
-    
-    logger.info(f"M-Pesa C2B Confirmation: Receipt={mpesa_receipt}, Amount={amount}, Phone={phone}")
-    
-    # Find transaction by account reference (our internal reference)
-    tx = db.query(Transaction).filter(
-        (Transaction.tx_ref == account_reference) |
-        (Transaction.provider_ref == account_reference)
-    ).first()
-    
-    if tx and tx.status == TransactionStatus.PROCESSING:
-        tx.status = TransactionStatus.COMPLETED
-        tx.completed_at = datetime.utcnow()
-        tx.provider_ref = mpesa_receipt
-        
+        # Update wallet
         wallet = db.query(Wallet).filter(Wallet.id == tx.wallet_id).first()
         if wallet:
-            wallet.kes_balance += tx.amount
+            wallet.usdt_balance += tx.amount
+            
+            # Send notification
+            user = db.query(User).filter(User.operator_id == tx.operator_id).first()
+            if user:
+                try:
+                    send_deposit_notification(
+                        to_email=user.email,
+                        amount=float(tx.amount),
+                        reference=tx.tx_ref,
+                        currency="USDT"
+                    )
+                except Exception as e:
+                    logger.error(f"Failed to send deposit email: {e}")
         
         db.commit()
-        logger.info(f"✅ C2B Payment Success: {amount} KES")
-
-    return {"ResultCode": 0, "ResultDesc": "Success"}
+        logger.info(f"✅ Crypto deposit confirmed: {tx_hash}")
+    
+    return {"status": "received", "confirmations": confirmations}

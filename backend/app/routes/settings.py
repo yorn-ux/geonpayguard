@@ -52,9 +52,9 @@ async def sync_user_settings(
                 }
             },
             "payments": {
-                "mpesa_number": user_settings.payout_account if user_settings else "",
-                "payout_account": user_settings.payout_account if user_settings else "",
-                "payout_method": user_settings.payout_method if user_settings else "M-Pesa",
+                "paypal_email": user_settings.paypal_email if user_settings else "",
+                "crypto_address": user_settings.crypto_address if user_settings else "",
+                "payout_method": user_settings.payout_method if user_settings else "paypal",
                 "min_threshold": user_settings.min_payout_threshold if user_settings else 1000.0,
                 "min_payout_threshold": user_settings.min_payout_threshold if user_settings else 1000.0,
                 "auto_withdraw": user_settings.auto_withdraw if user_settings else False,
@@ -154,7 +154,8 @@ async def update_setting(
                 "profile.avatar": ("avatar_url", str),
                 "profile.country": ("country", str),
                 "profile.email": ("email", str, User),
-                "payments.mpesa_number": ("payout_account", str),
+                "payments.paypal_email": ("paypal_email", str),
+                "payments.crypto_address": ("crypto_address", str),
                 "payments.payout_method": ("payout_method", str),
                 "payments.min_threshold": ("min_payout_threshold", float),
                 "payments.auto_withdraw": ("auto_withdraw", bool),

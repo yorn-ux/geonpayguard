@@ -33,7 +33,7 @@ export default function InfluencerSettings({ data: initialData }: { data: any })
       }
     },
     payments: {
-      mpesa_number: '',
+      paypal_email: '',
       auto_withdraw: false,
       min_threshold: 1000
     },
@@ -554,25 +554,25 @@ export default function InfluencerSettings({ data: initialData }: { data: any })
                     <p className="text-sm text-gray-500 mt-1">Manage your payout methods</p>
                   </div>
 
-                  {/* M-Pesa Section */}
+                  {/* PayPal Section */}
                   <div className="bg-gray-50 rounded-lg p-5">
                     <div className="flex items-center gap-2 mb-4">
                       <Smartphone size={18} className="text-emerald-600" />
-                      <h3 className="text-sm font-medium text-gray-900">M-PESA</h3>
+                      <h3 className="text-sm font-medium text-gray-900">PayPal</h3>
                       <span className="text-xs px-2 py-0.5 bg-emerald-100 text-emerald-700 rounded-full ml-2">Primary</span>
                     </div>
                     
                     <EditableField
                       label="Phone Number"
-                      value={data?.payments?.mpesa_number}
-                      path="payments.mpesa_number"
+                      value={data?.payments?.paypal_email}
+                      path="payments.paypal_email"
                       onSave={updateSetting}
-                      isEditing={editingField === 'payments.mpesa_number'}
+                      isEditing={editingField === 'payments.paypal_email'}
                       editValue={editValue}
-                      onStartEdit={() => startEditing('payments.mpesa_number', data?.payments?.mpesa_number)}
+                      onStartEdit={() => startEditing('payments.paypal_email', data?.payments?.paypal_email)}
                       onCancelEdit={cancelEditing}
                       onEditChange={setEditValue}
-                      loading={isUpdating === 'payments.mpesa_number'}
+                      loading={isUpdating === 'payments.paypal_email'}
                       icon={<Phone size={16} />}
                       placeholder="0712 345 678"
                     />

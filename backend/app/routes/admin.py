@@ -2321,83 +2321,76 @@ async def get_revenue_volume(
         else:
             return {"monthly": []}
 
-# ==================== MPESA METRICS ENDPOINT ====================
+# ==================== PAYMENT PROVIDER METRICS ENDPOINT ====================
 
-@router.get("/mpesa/metrics")
-async def get_mpesa_metrics(
+@router.get("/payment/metrics")
+async def get_payment_metrics(
     current_user: dict = Depends(verify_admin),
     db: Session = Depends(get_db)
 ):
-    """Get M-Pesa metrics for admin dashboard"""
+    """Get payment provider metrics for admin dashboard"""
     try:
-        # Try to get real metrics from transactions
         if WALLET_MODELS_AVAILABLE:
-            # Get all M-Pesa transactions
-            total_transactions = db.execute(
-                select(func.count())
-                .select_from(Transaction)
-                .where(Transaction.provider == "mpesa")
-            ).scalar() or 0
+            providers = ["paypal", "crypto", "card"]
+            metrics = {}
             
-            successful = db.execute(
-                select(func.count())
-                .select_from(Transaction)
-                .where(
-                    Transaction.provider == "mpesa",
-                    Transaction.status == "completed"
-                )
-            ).scalar() or 0
+            for provider in providers:
+                total_transactions = db.execute(
+                    select(func.count())
+                    .select_from(Transaction)
+                    .where(Transaction.provider == provider)
+                ).scalar() or 0
+                
+                successful = db.execute(
+                    select(func.count())
+                    .select_from(Transaction)
+                    .where(
+                        Transaction.provider == provider,
+                        Transaction.status == "completed"
+                    )
+                ).scalar() or 0
+                
+                failed = db.execute(
+                    select(func.count())
+                    .select_from(Transaction)
+                    .where(
+                        Transaction.provider == provider,
+                        Transaction.status == "failed"
+                    )
+                ).scalar() or 0
+                
+                success_rate = (successful / total_transactions * 100) if total_transactions > 0 else 0
+                
+                total_settled = db.execute(
+                    select(func.sum(Transaction.amount))
+                    .select_from(Transaction)
+                    .where(
+                        Transaction.provider == provider,
+                        Transaction.status == "completed"
+                    )
+                ).scalar() or 0
+                
+                metrics[provider] = {
+                    "total_transactions": total_transactions,
+                    "successful": successful,
+                    "failed": failed,
+                    "success_rate": round(success_rate, 1),
+                    "total_settled": float(total_settled) if total_settled else 0
+                }
             
-            failed = db.execute(
-                select(func.count())
-                .select_from(Transaction)
-                .where(
-                    Transaction.provider == "mpesa",
-                    Transaction.status == "failed"
-                )
-            ).scalar() or 0
-            
-            # Calculate success rate
-            success_rate = (successful / total_transactions * 100) if total_transactions > 0 else 0
-            
-            # Total settled amount
-            total_settled = db.execute(
-                select(func.sum(Transaction.amount))
-                .select_from(Transaction)
-                .where(
-                    Transaction.provider == "mpesa",
-                    Transaction.status == "completed"
-                )
-            ).scalar() or 0
-            
-            return {
-                "total_transactions": total_transactions,
-                "successful": successful,
-                "failed": failed,
-                "success_rate": round(success_rate, 1),
-                "avg_time": "0s",
-                "total_settled": float(total_settled)
-            }
+            return metrics
         
-        # Return empty data if no real data
         return {
-            "total_transactions": 0,
-            "successful": 0,
-            "failed": 0,
-            "success_rate": 0,
-            "avg_time": "0s",
-            "total_settled": 0
+            "paypal": {"total_transactions": 0, "successful": 0, "failed": 0, "success_rate": 0, "total_settled": 0},
+            "crypto": {"total_transactions": 0, "successful": 0, "failed": 0, "success_rate": 0, "total_settled": 0},
+            "card": {"total_transactions": 0, "successful": 0, "failed": 0, "success_rate": 0, "total_settled": 0}
         }
     except Exception as e:
-        logging.error(f"Failed to get M-Pesa metrics: {str(e)}")
-        # Return empty data on error
+        logging.error(f"Failed to get payment metrics: {str(e)}")
         return {
-            "total_transactions": 0,
-            "successful": 0,
-            "failed": 0,
-            "success_rate": 0,
-            "avg_time": "0s",
-            "total_settled": 0
+            "paypal": {"total_transactions": 0, "successful": 0, "failed": 0, "success_rate": 0, "total_settled": 0},
+            "crypto": {"total_transactions": 0, "successful": 0, "failed": 0, "success_rate": 0, "total_settled": 0},
+            "card": {"total_transactions": 0, "successful": 0, "failed": 0, "success_rate": 0, "total_settled": 0}
         }
     
-    # End of mpesa metrics endpoint
+    # End of payment metrics endpoint

@@ -44,8 +44,9 @@ class UserSettings(Base):
     kyc_documents = Column(JSON, default=[])
     
     # 3. Liquidity Rails
-    payout_method = Column(String, default="M-Pesa")
-    payout_account = Column(String, nullable=True)
+    payout_method = Column(String, default="paypal")
+    paypal_email = Column(String, nullable=True)
+    crypto_address = Column(String, nullable=True)
     min_payout_threshold = Column(Float, default=1000.0)
     auto_withdraw = Column(Boolean, default=False)
     currency = Column(String, default="KES")

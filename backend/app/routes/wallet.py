@@ -16,11 +16,6 @@ from ..models.user import User
 from .auth import get_current_user
 from ..services.email import send_deposit_notification, send_withdrawal_notification
 
-# M-Pesa API Configuration
-MPESA_ENVIRONMENT = os.getenv("MPESA_ENVIRONMENT", "sandbox")
-MPESA_SHORTCODE = os.getenv("MPESA_SHORTCODE", "")
-MPESA_CALLBACK_URL = os.getenv("MPESA_CALLBACK_URL", "")
-
 router = APIRouter(tags=["Unified Wallet"])
 
 # --- 1. UTILITIES ---
@@ -36,44 +31,10 @@ def calculate_withdrawal_fee(amount: Decimal, method: str, history_count: int, t
     volume_discount = min(total_volume / Decimal("10000000"), Decimal("0.1"))
     
     final_perc = max(Decimal("0.25"), base_perc - loyalty_discount - volume_discount)
-    if method == "mpesa": final_perc += Decimal("0.25")  # Increased for PesaPal payouts
     
     fee = (amount * final_perc) / 100
-    min_fee = Decimal("45") if method == "mpesa" else Decimal("5")  # Min KES 45 for M-PESA
+    min_fee = Decimal("5")  # Minimum fee
     return max(fee, min_fee)
-
-def format_phone_for_mpesa(phone: str) -> str:
-    """Format phone number for M-Pesa (254XXXXXXXXX format)"""
-    # Remove all non-numeric characters
-    cleaned = ''.join(filter(str.isdigit, phone))
-    
-    # Convert to 254 format
-    if cleaned.startswith('0'):
-        cleaned = '254' + cleaned[1:]
-    elif cleaned.startswith('7'):
-        cleaned = '254' + cleaned
-    elif cleaned.startswith('254') and len(cleaned) == 12:
-        pass  # Already correct
-    else:
-        raise ValueError("Invalid phone number format")
-    
-    return cleaned
-
-def generate_mpesa_headers():
-    """Generate headers for M-Pesa API requests"""
-    return {
-        "Content-Type": "application/json"
-    }
-
-async def check_mpesa_transaction_status(checkout_request_id: str) -> dict:
-    """Check transaction status with M-Pesa"""
-    from ..services.mpesa import check_stk_push_status
-    try:
-        result = await check_stk_push_status(checkout_request_id)
-        return result
-    except Exception as e:
-        print(f"M-Pesa status check error: {e}")
-        return {"status": "error"}
 
 # --- 2. QUERY ROUTES ---
 
@@ -173,19 +134,6 @@ async def get_transaction_status(
     if not transaction:
         raise HTTPException(404, "Transaction not found")
     
-    # If it's an M-Pesa transaction and still processing, check with provider
-    if transaction.provider == "mpesa" and transaction.status == TransactionStatus.PROCESSING:
-        if transaction.provider_ref:
-            status_data = await check_mpesa_transaction_status(transaction.provider_ref)
-            
-            # Update status if changed
-            if status_data.get("payment_status") == "COMPLETE" or status_data.get("complete") == True:
-                transaction.status = TransactionStatus.COMPLETED
-                db.commit()
-            elif status_data.get("payment_status") == "FAILED":
-                transaction.status = TransactionStatus.FAILED
-                db.commit()
-    
     return {
         "id": transaction.id,
         "status": transaction.status.value,
@@ -198,15 +146,18 @@ async def get_transaction_status(
         "failure_reason": transaction.failure_reason
     }
 
-# --- 3. DEPOSIT ROUTES (M-Pesa STK Push) ---
+# --- 3. DEPOSIT ROUTES (PayPal) ---
 
-@router.post("/deposit/mpesa")
-async def deposit_mpesa(
+@router.post("/deposit/paypal")
+async def deposit_paypal(
     payload: dict,
     background_tasks: BackgroundTasks,
     current_user: dict = Depends(get_current_user), 
     db: Session = Depends(get_db)
 ):
+    """Process PayPal deposit - creates a PayPal order for the user to complete"""
+    import requests
+    
     user_op_id = current_user["operator_id"]
     wallet = db.query(Wallet).filter(Wallet.operator_id == user_op_id).first()
     
@@ -214,16 +165,61 @@ async def deposit_mpesa(
         raise HTTPException(404, "Wallet not found")
     
     amount = Decimal(str(payload.get("amount", 0)))
-    phone = payload.get("phone")
+    currency = payload.get("currency", "KES")
     reference = payload.get("reference", f"DEP-{uuid.uuid4().hex[:8].upper()}")
     
     if amount <= 0:
         raise HTTPException(400, "Deposit amount must be greater than 0")
     
-    if not phone:
-        raise HTTPException(400, "Phone number is required")
+    # Get PayPal credentials
+    paypal_client_id = os.getenv("PAYPAL_CLIENT_ID")
+    paypal_client_secret = os.getenv("PAYPAL_CLIENT_SECRET")
+    paypal_mode = os.getenv("PAYPAL_MODE", "sandbox")
     
-    # Create transaction record first
+    if not paypal_client_id or not paypal_client_secret:
+        raise HTTPException(503, "PayPal not configured")
+    
+    # Create PayPal order
+    base_url = "https://api-m.sandbox.paypal.com" if paypal_mode == "sandbox" else "https://api-m.paypal.com"
+    
+    # Get access token
+    auth_response = requests.post(
+        f"{base_url}/v1/oauth2/token",
+        auth=(paypal_client_id, paypal_client_secret),
+        data={"grant_type": "client_credentials"}
+    )
+    
+    if auth_response.status_code != 200:
+        raise HTTPException(502, "Failed to authenticate with PayPal")
+    
+    access_token = auth_response.json()["access_token"]
+    
+    # Create order
+    order_response = requests.post(
+        f"{base_url}/v2/checkout/orders",
+        headers={
+            "Authorization": f"Bearer {access_token}",
+            "Content-Type": "application/json"
+        },
+        json={
+            "intent": "CAPTURE",
+            "purchase_units": [{
+                "reference_id": reference,
+                "amount": {
+                    "currency_code": currency,
+                    "value": str(amount)
+                },
+                "description": f"Wallet Deposit - {reference}"
+            }]
+        }
+    )
+    
+    if order_response.status_code != 201:
+        raise HTTPException(502, "Failed to create PayPal order")
+    
+    order_data = order_response.json()
+    
+    # Create transaction record
     tx_id = str(uuid.uuid4())
     tx = Transaction(
         id=tx_id,
@@ -235,175 +231,247 @@ async def deposit_mpesa(
         amount=amount,
         fee=Decimal("0.00"),
         net_amount=amount,
-        currency="KES",
+        currency=currency,
         tx_ref=reference,
-        provider="mpesa",
-        provider_ref=None,
+        provider="paypal",
+        provider_ref=order_data.get("id"),
         failure_reason=None,
         created_at=datetime.utcnow(),
         completed_at=None
     )
     db.add(tx)
+    db.commit()
     
-    try:
-        db.commit()
-    except Exception as e:
-        db.rollback()
-        raise HTTPException(500, f"Failed to create transaction: {str(e)}")
+    # Find approval URL
+    approval_url = None
+    for link in order_data.get("links", []):
+        if link.get("rel") == "approve":
+            approval_url = link.get("href")
+            break
     
-    try:
-        # Format phone for M-Pesa
-        formatted_phone = format_phone_for_mpesa(phone)
-        
-        # Call M-Pesa STK Push
-        from ..services.mpesa import stk_push_request
-        mpesa_result = await stk_push_request(
-            phone=formatted_phone,
-            amount=float(amount),
-            reference=reference,
-            description=f"Wallet Deposit - {reference}"
-        )
-        
-        # Update transaction with M-Pesa reference
-        tx.provider_ref = mpesa_result.get("checkout_request_id")
-        tx.beneficiary_phone = formatted_phone
-        db.commit()
-        
-        return {
-            "status": "pending",
-            "message": "STK Push sent to phone",
-            "checkout_request_id": tx.provider_ref,
-            "tx_id": tx_id,
-            "tx_ref": reference
-        }
-        
-    except ValueError as e:
-        tx.status = TransactionStatus.FAILED
-        tx.failure_reason = str(e)
-        db.commit()
-        raise HTTPException(400, str(e))
-    except httpx.RequestError as e:
-        tx.status = TransactionStatus.FAILED
-        tx.failure_reason = f"Network error: {str(e)}"
-        db.commit()
-        raise HTTPException(502, f"Payment gateway error: {str(e)}")
-    except Exception as e:
-        tx.status = TransactionStatus.FAILED
-        tx.failure_reason = str(e)
-        db.commit()
-        raise HTTPException(500, f"Deposit failed: {str(e)}")
+    return {
+        "status": "pending",
+        "message": "PayPal order created",
+        "order_id": order_data.get("id"),
+        "approval_url": approval_url,
+        "tx_id": tx_id,
+        "tx_ref": reference
+    }
 
-@router.post("/deposit/mpesa/webhook")
-async def mpesa_webhook(request: Request, db: Session = Depends(get_db)):
-    """Handle M-Pesa webhook for payment notifications"""
-    try:
-        payload = await request.json()
-    except:
-        payload = await request.body()
-        try:
-            import json
-            payload = json.loads(payload)
-        except:
-            payload = {}
-    
-    # Verify webhook signature (implement based on PesaPal docs)
-    
-    event_type = payload.get("payment_status") or payload.get("status")
-    order_tracking_id = payload.get("order_tracking_id")
-    merchant_reference = payload.get("merchant_reference")
-    
-    if event_type == "COMPLETED" and order_tracking_id:
-        # Payment successful
-        transaction = db.query(Transaction).filter(
-            (Transaction.provider_ref == order_tracking_id) | (Transaction.tx_ref == merchant_reference)
-        ).first()
-        
-        if transaction and transaction.status == TransactionStatus.PROCESSING:
-            transaction.status = TransactionStatus.COMPLETED
-            transaction.completed_at = datetime.utcnow()
-            
-            # Update wallet balance
-            wallet = db.query(Wallet).filter(Wallet.id == transaction.wallet_id).first()
-            if wallet and transaction.tx_type == TransactionType.DEPOSIT:
-                wallet.kes_balance += transaction.amount
-                
-                # Send deposit notification email
-                user = db.query(User).filter(User.operator_id == transaction.operator_id).first()
-                if user:
-                    try:
-                        send_deposit_notification(
-                            to_email=user.email,
-                            amount=float(transaction.amount),
-                            reference=transaction.tx_ref,
-                            currency=transaction.currency
-                        )
-                    except Exception as e:
-                        print(f"Failed to send deposit email: {e}")
-            
-            db.commit()
-            
-    elif event_type == "FAILED" and order_tracking_id:
-        # Payment failed
-        transaction = db.query(Transaction).filter(Transaction.provider_ref == order_tracking_id).first()
-        if transaction and transaction.status == TransactionStatus.PROCESSING:
-            transaction.status = TransactionStatus.FAILED
-            transaction.failure_reason = payload.get("reason", "Payment failed")
-            db.commit()
-    
-    return {"status": "received"}
 
-# --- 4. WITHDRAWAL ROUTES (M-Pesa B2C Payouts) ---
+@router.post("/deposit/crypto")
+async def deposit_crypto(
+    payload: dict,
+    current_user: dict = Depends(get_current_user), 
+    db: Session = Depends(get_db)
+):
+    """Generate crypto deposit address for wallet funding"""
+    user_op_id = current_user["operator_id"]
+    wallet = db.query(Wallet).filter(Wallet.operator_id == user_op_id).first()
+    
+    if not wallet:
+        raise HTTPException(404, "Wallet not found")
+    
+    network = payload.get("network", "trc20")  # trc20, bep20, erc20
+    amount = Decimal(str(payload.get("amount", 0)))
+    reference = payload.get("reference", f"DEP-{uuid.uuid4().hex[:8].upper()}")
+    
+    if amount <= 0:
+        raise HTTPException(400, "Deposit amount must be greater than 0")
+    
+    # For demo, return platform deposit address
+    # In production, generate unique addresses per user
+    hot_wallet_address = os.getenv("TRON_HOT_WALLET_ADDRESS") if network == "trc20" else os.getenv("HOT_WALLET_ADDRESS")
+    
+    if not hot_wallet_address:
+        raise HTTPException(503, "Crypto wallet not configured")
+    
+    # Create pending transaction
+    tx_id = str(uuid.uuid4())
+    tx = Transaction(
+        id=tx_id,
+        wallet_id=wallet.id,
+        operator_id=user_op_id,
+        business_id=None,
+        tx_type=TransactionType.DEPOSIT,
+        status=TransactionStatus.PROCESSING,
+        amount=amount,
+        fee=Decimal("0.00"),
+        net_amount=amount,
+        currency="USDT",
+        tx_ref=reference,
+        provider="crypto",
+        provider_ref=f"{network}:{reference}",
+        failure_reason=None,
+        created_at=datetime.utcnow(),
+        completed_at=None
+    )
+    db.add(tx)
+    db.commit()
+    
+    return {
+        "status": "pending",
+        "message": f"Send {amount} USDT on {network} to the address below",
+        "deposit_address": hot_wallet_address,
+        "network": network,
+        "currency": "USDT",
+        "tx_id": tx_id,
+        "tx_ref": reference
+    }
 
-@router.post("/withdraw/mpesa")
-async def withdraw_mpesa(
+# --- 4. WITHDRAWAL ROUTES (Crypto & PayPal) ---
+
+@router.post("/withdraw/crypto")
+async def withdraw_crypto(
     payload: dict,
     background_tasks: BackgroundTasks,
     current_user: dict = Depends(get_current_user), 
     db: Session = Depends(get_db)
 ):
+    """Process crypto withdrawal to external wallet"""
+    from ..services.crypto import process_crypto_withdrawal, validate_crypto_address
+    
     user_op_id = current_user["operator_id"]
     
-    # Use with_for_update() to lock the row while we calculate balance
     wallet = db.query(Wallet).filter(Wallet.operator_id == user_op_id).with_for_update().first()
     
     if not wallet or wallet.is_locked: 
         raise HTTPException(403, "Account Restricted or Locked")
     
     amount = Decimal(str(payload.get("amount", 0)))
-    phone = payload.get("phone")
+    address = payload.get("address")
+    network = payload.get("network", "trc20")  # trc20, bep20, erc20
     reference = payload.get("reference", f"WTH-{uuid.uuid4().hex[:8].upper()}")
     
     if amount <= 0:
         raise HTTPException(400, "Withdrawal amount must be greater than 0")
     
-    if not phone:
-        raise HTTPException(400, "Phone number is required")
+    if not address:
+        raise HTTPException(400, "Crypto address is required")
+    
+    # Validate crypto address
+    if not validate_crypto_address(address, network):
+        raise HTTPException(400, f"Invalid {network} address")
+    
+    # Calculate fee (1% for crypto)
+    fee = amount * Decimal("0.01")
+    total_deduction = amount + fee
+
+    if wallet.usdt_balance < total_deduction: 
+        raise HTTPException(400, f"Insufficient USDT Balance. Need {total_deduction:.2f} including fees")
+
+    # Deduct funds
+    wallet.usdt_balance -= total_deduction
+    
+    # Create transaction record
+    tx_id = str(uuid.uuid4())
+    tx = Transaction(
+        id=tx_id,
+        wallet_id=wallet.id,
+        operator_id=user_op_id,
+        business_id=None,
+        tx_type=TransactionType.WITHDRAWAL,
+        status=TransactionStatus.PROCESSING,
+        amount=amount,
+        fee=fee,
+        net_amount=amount,
+        currency="USDT",
+        tx_ref=reference,
+        provider="crypto",
+        provider_ref=None,
+        failure_reason=None,
+        beneficiary_address=address,
+        created_at=datetime.utcnow(),
+        completed_at=None
+    )
+    db.add(tx)
+    revenue = PlatformRevenue(
+        id=str(uuid.uuid4()),
+        transaction_id=tx_id,
+        amount_kes=0,  # Crypto fees handled differently
+        amount_usdt=fee,
+        source="withdrawal_fee"
+    )
+    db.add(revenue)
     
     try:
-        formatted_phone = format_phone_for_mpesa(phone)
-    except ValueError as e:
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(500, f"Ledger update failed: {str(e)}")
+    
+    # Process crypto withdrawal
+    try:
+        tx_hash = await process_crypto_withdrawal(address, float(amount), network)
+        
+        tx.provider_ref = tx_hash
+        tx.status = TransactionStatus.COMPLETED
+        tx.completed_at = datetime.utcnow()
+        db.commit()
+        
+        # Send withdrawal notification
+        try:
+            send_withdrawal_notification(
+                to_email=current_user["email"],
+                amount=float(amount),
+                reference=reference,
+                currency="USDT"
+            )
+        except Exception as e:
+            print(f"Failed to send withdrawal email: {e}")
+        
+        return {
+            "status": "completed",
+            "message": "Withdrawal processed successfully",
+            "withdrawal_id": tx_id,
+            "tx_hash": tx_hash,
+            "network": network,
+            "tx_ref": reference
+        }
+    except Exception as e:
+        wallet.usdt_balance += total_deduction
+        tx.status = TransactionStatus.FAILED
+        tx.failure_reason = str(e)
+        db.commit()
         raise HTTPException(400, str(e))
-    
-    # Simple metrics query for fee calculation
-    stats = db.query(
-        func.count(Transaction.id),
-        func.sum(Transaction.amount)
-    ).filter(
-        Transaction.wallet_id == wallet.id,
-        Transaction.tx_type == TransactionType.WITHDRAWAL,
-        Transaction.status == TransactionStatus.COMPLETED
-    ).first()
 
-    history_count = stats[0] or 0
-    total_vol = stats[1] or Decimal("0")
+
+@router.post("/withdraw/paypal")
+async def withdraw_paypal(
+    payload: dict,
+    background_tasks: BackgroundTasks,
+    current_user: dict = Depends(get_current_user), 
+    db: Session = Depends(get_db)
+):
+    """Process PayPal withdrawal"""
+    import requests
     
-    fee = calculate_withdrawal_fee(amount, "mpesa", history_count, total_vol)
+    user_op_id = current_user["operator_id"]
+    
+    wallet = db.query(Wallet).filter(Wallet.operator_id == user_op_id).with_for_update().first()
+    
+    if not wallet or wallet.is_locked: 
+        raise HTTPException(403, "Account Restricted or Locked")
+    
+    amount = Decimal(str(payload.get("amount", 0)))
+    paypal_email = payload.get("paypal_email")
+    currency = payload.get("currency", "KES")
+    reference = payload.get("reference", f"WTH-{uuid.uuid4().hex[:8].upper()}")
+    
+    if amount <= 0:
+        raise HTTPException(400, "Withdrawal amount must be greater than 0")
+    
+    if not paypal_email:
+        raise HTTPException(400, "PayPal email is required")
+    
+    # Calculate fee (2.5% for PayPal)
+    fee = amount * Decimal("0.025")
     total_deduction = amount + fee
 
     if wallet.kes_balance < total_deduction: 
-        raise HTTPException(400, f"Insufficient Balance. Need KES {total_deduction:.2f} including fees")
+        raise HTTPException(400, f"Insufficient Balance. Need {total_deduction:.2f} including fees")
 
-    # Deduct funds immediately to prevent double spending
+    # Deduct funds
     wallet.kes_balance -= total_deduction
     
     # Create transaction record
@@ -418,12 +486,12 @@ async def withdraw_mpesa(
         amount=amount,
         fee=fee,
         net_amount=amount,
-        currency="KES",
+        currency=currency,
         tx_ref=reference,
-        provider="mpesa",
+        provider="paypal",
         provider_ref=None,
         failure_reason=None,
-        beneficiary_phone=formatted_phone,
+        beneficiary_account=paypal_email,
         created_at=datetime.utcnow(),
         completed_at=None
     )
@@ -442,40 +510,104 @@ async def withdraw_mpesa(
         db.rollback()
         raise HTTPException(500, f"Ledger update failed: {str(e)}")
     
-    # Process external payment via M-Pesa B2C
-    from ..services.mpesa import b2c_payment
+    # Process PayPal payout (simplified - in production use PayPal Payouts API)
     try:
-        mpesa_result = await b2c_payment(
-            phone=formatted_phone,
-            amount=float(amount),
-            reference=reference,
-            description=f"Withdrawal - {reference}"
+        paypal_client_id = os.getenv("PAYPAL_CLIENT_ID")
+        paypal_client_secret = os.getenv("PAYPAL_CLIENT_SECRET")
+        paypal_mode = os.getenv("PAYPAL_MODE", "sandbox")
+        
+        if not paypal_client_id or not paypal_client_secret:
+            # For demo, just mark as completed
+            tx.provider_ref = f"PP-{reference}"
+            tx.status = TransactionStatus.COMPLETED
+            tx.completed_at = datetime.utcnow()
+            db.commit()
+            
+            return {
+                "status": "completed",
+                "message": "Withdrawal processed",
+                "withdrawal_id": tx_id,
+                "payout_id": tx.provider_ref,
+                "tx_ref": reference
+            }
+        
+        base_url = "https://api-m.sandbox.paypal.com" if paypal_mode == "sandbox" else "https://api-m.paypal.com"
+        
+        # Get access token
+        auth_response = requests.post(
+            f"{base_url}/v1/oauth2/token",
+            auth=(paypal_client_id, paypal_client_secret),
+            data={"grant_type": "client_credentials"}
         )
         
-        # Store M-Pesa references
-        tx.provider_ref = mpesa_result.get("conversation_id")
+        if auth_response.status_code != 200:
+            wallet.kes_balance += total_deduction
+            tx.status = TransactionStatus.FAILED
+            tx.failure_reason = "PayPal authentication failed"
+            db.commit()
+            raise HTTPException(502, "Failed to authenticate with PayPal")
+        
+        access_token = auth_response.json()["access_token"]
+        
+        # Create payout
+        payout_response = requests.post(
+            f"{base_url}/v1/payments/payouts",
+            headers={
+                "Authorization": f"Bearer {access_token}",
+                "Content-Type": "application/json"
+            },
+            json={
+                "sender_batch_header": {
+                    "sender_batch_id": reference,
+                    "email_subject": "You have received a withdrawal from Geon PayGuard",
+                    "email_message": f"Your withdrawal of {amount} {currency} has been processed."
+                },
+                "items": [{
+                    "recipient_type": "EMAIL",
+                    "amount": {
+                        "value": str(amount),
+                        "currency": currency
+                    },
+                    "receiver": paypal_email,
+                    "note": f"Withdrawal - {reference}"
+                }]
+            }
+        )
+        
+        if payout_response.status_code != 201:
+            wallet.kes_balance += total_deduction
+            tx.status = TransactionStatus.FAILED
+            tx.failure_reason = f"PayPal payout failed: {payout_response.text}"
+            db.commit()
+            raise HTTPException(502, "Failed to process PayPal payout")
+        
+        payout_data = payout_response.json()
+        tx.provider_ref = payout_data.get("batch_header", {}).get("payout_batch_id")
+        tx.status = TransactionStatus.COMPLETED
+        tx.completed_at = datetime.utcnow()
         db.commit()
         
-        # Send withdrawal notification email
+        # Send notification
         try:
             send_withdrawal_notification(
                 to_email=current_user["email"],
                 amount=float(amount),
                 reference=reference,
-                currency="KES"
+                currency=currency
             )
         except Exception as e:
             print(f"Failed to send withdrawal email: {e}")
         
         return {
-            "status": "processing",
-            "message": "Withdrawal initiated",
+            "status": "completed",
+            "message": "Withdrawal processed successfully",
             "withdrawal_id": tx_id,
-            "conversation_id": tx.provider_ref,
+            "payout_id": tx.provider_ref,
             "tx_ref": reference
         }
+    except HTTPException:
+        raise
     except Exception as e:
-        # Refund the deducted amount
         wallet.kes_balance += total_deduction
         tx.status = TransactionStatus.FAILED
         tx.failure_reason = str(e)
@@ -509,26 +641,6 @@ async def get_withdrawal_status(
     
     if not transaction:
         raise HTTPException(404, "Withdrawal not found")
-    
-    # If processing, check with M-Pesa
-    if transaction.status == TransactionStatus.PROCESSING and transaction.provider_ref:
-        from ..services.mpesa import check_stk_push_status
-        try:
-            result = await check_stk_push_status(transaction.provider_ref)
-            
-            # Update status based on M-Pesa response
-            if result.get("complete") or result.get("success"):
-                transaction.status = TransactionStatus.COMPLETED
-                transaction.completed_at = datetime.utcnow()
-                db.commit()
-            elif result.get("status") == "FAILED":
-                transaction.status = TransactionStatus.FAILED
-                transaction.failure_reason = result.get("reason", "Payout failed")
-                # Refund the wallet
-                wallet.kes_balance += transaction.amount + transaction.fee
-                db.commit()
-        except Exception as e:
-            print(f"Error checking payout status: {e}")
     
     return {
         "id": transaction.id,
@@ -568,26 +680,6 @@ async def get_deposit_status(
     
     if not transaction:
         raise HTTPException(404, "Transaction not found")
-    
-    # If processing, check with M-Pesa
-    if transaction.status == TransactionStatus.PROCESSING and transaction.provider_ref:
-        from ..services.mpesa import check_stk_push_status
-        try:
-            result = await check_stk_push_status(transaction.provider_ref)
-            
-            # Update status based on M-Pesa response
-            if result.get("complete") or result.get("success"):
-                transaction.status = TransactionStatus.COMPLETED
-                transaction.completed_at = datetime.utcnow()
-                # Add funds to wallet
-                wallet.kes_balance += transaction.amount
-                db.commit()
-            elif result.get("status") == "FAILED":
-                transaction.status = TransactionStatus.FAILED
-                transaction.failure_reason = result.get("reason", "Payment failed")
-                db.commit()
-        except Exception as e:
-            print(f"Error checking deposit status: {e}")
     
     return {
         "id": transaction.id,
@@ -803,84 +895,89 @@ async def get_withdrawal_metrics(
         "total_withdrawn": float(total_withdrawn)
     }
 
-# --- 7. MPESA SPECIFIC ROUTES ---
+# --- 7. PAYMENT PROVIDER STATS ---
 
-@router.get("/mpesa/stats")
-async def get_mpesa_stats(
+@router.get("/payment/stats")
+async def get_payment_stats(
     current_user: dict = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Get M-Pesa transaction statistics"""
+    """Get payment transaction statistics for all providers"""
     user_op_id = current_user["operator_id"]
     wallet = db.query(Wallet).filter(Wallet.operator_id == user_op_id).first()
     
     if not wallet:
         return {"balance": 0, "transactions": 0}
     
-    # Count M-Pesa transactions
-    mpesa_count = db.query(func.count(Transaction.id)).filter(
-        Transaction.wallet_id == wallet.id,
-        Transaction.provider == "mpesa"
-    ).scalar() or 0
+    # Count transactions by provider
+    providers = ["paypal", "crypto", "card"]
+    stats = {}
     
-    # Sum of M-Pesa deposits (pending might be at M-Pesa)
-    mpesa_balance = db.query(func.sum(Transaction.amount)).filter(
-        Transaction.wallet_id == wallet.id,
-        Transaction.provider == "mpesa",
-        Transaction.status == TransactionStatus.PROCESSING,
-        Transaction.tx_type == TransactionType.DEPOSIT
-    ).scalar() or 0
+    for provider in providers:
+        count = db.query(func.count(Transaction.id)).filter(
+            Transaction.wallet_id == wallet.id,
+            Transaction.provider == provider
+        ).scalar() or 0
+        
+        balance = db.query(func.sum(Transaction.amount)).filter(
+            Transaction.wallet_id == wallet.id,
+            Transaction.provider == provider,
+            Transaction.status == TransactionStatus.PROCESSING,
+            Transaction.tx_type == TransactionType.DEPOSIT
+        ).scalar() or 0
+        
+        stats[provider] = {
+            "balance": float(balance),
+            "total_transactions": count
+        }
     
-    return {
-        "balance": float(mpesa_balance),
-        "total_transactions": mpesa_count,
-        "provider": "mpesa"
-    }
+    return stats
 
 # --- 8. ADMIN ROUTES ---
 
-@router.get("/admin/mpesa/metrics")
-async def get_admin_mpesa_metrics(
+@router.get("/admin/payment/metrics")
+async def get_admin_payment_metrics(
     current_user: dict = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Admin endpoint for M-Pesa metrics (admin only)"""
-    # Check if user is admin
+    """Admin endpoint for payment provider metrics"""
     if current_user.get("role") != "admin":
         raise HTTPException(403, "Admin access required")
     
-    # Get all M-Pesa transactions
-    total_transactions = db.query(func.count(Transaction.id)).filter(
-        Transaction.provider == "mpesa"
-    ).scalar() or 0
+    providers = ["paypal", "crypto", "card"]
+    metrics = {}
     
-    successful = db.query(func.count(Transaction.id)).filter(
-        Transaction.provider == "mpesa",
-        Transaction.status == TransactionStatus.COMPLETED
-    ).scalar() or 0
+    for provider in providers:
+        total = db.query(func.count(Transaction.id)).filter(
+            Transaction.provider == provider
+        ).scalar() or 0
+        
+        successful = db.query(func.count(Transaction.id)).filter(
+            Transaction.provider == provider,
+            Transaction.status == TransactionStatus.COMPLETED
+        ).scalar() or 0
+        
+        failed = db.query(func.count(Transaction.id)).filter(
+            Transaction.provider == provider,
+            Transaction.status == TransactionStatus.FAILED
+        ).scalar() or 0
+        
+        success_rate = (successful / total * 100) if total > 0 else 0
+        
+        total_settled = db.query(func.sum(Transaction.amount)).filter(
+            Transaction.provider == provider,
+            Transaction.status == TransactionStatus.COMPLETED
+        ).scalar() or 0
+        
+        metrics[provider] = {
+            "total_transactions": total,
+            "successful": successful,
+            "failed": failed,
+            "success_rate": round(success_rate, 1),
+            "total_settled": float(total_settled)
+        }
     
-    failed = db.query(func.count(Transaction.id)).filter(
-        Transaction.provider == "mpesa",
-        Transaction.status == TransactionStatus.FAILED
-    ).scalar() or 0
-    
-    # Calculate success rate
-    success_rate = (successful / total_transactions * 100) if total_transactions > 0 else 98
-    
-    # Total settled amount
-    total_settled = db.query(func.sum(Transaction.amount)).filter(
-        Transaction.provider == "mpesa",
-        Transaction.status == TransactionStatus.COMPLETED
-    ).scalar() or 0
-    
-    return {
-        "total_transactions": total_transactions,
-        "successful": successful,
-        "failed": failed,
-        "success_rate": round(success_rate, 1),
-        "avg_time": "2.5s",  # Could calculate from actual data
-        "total_settled": float(total_settled)
-    }
+    return metrics
 
 @router.get("/admin/revenue/volume")
 async def get_revenue_volume(

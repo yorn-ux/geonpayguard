@@ -30,7 +30,7 @@ export default function AddFundsModal({ isOpen, onClose, onSuccess }: AddFundsMo
   const currentFee = isFirstDeposit ? 0 : STANDARD_FEE;
   const totalCharge = Number(amount) > 0 ? Number(amount) + currentFee : 0;
 
-  const [mpesaDetails, setMpesaDetails] = useState({ phone: '' });
+  const [paypalDetails, setpaypalDetails] = useState({ email: '' });
 
   // Professional Logo Component
   const GeonLogo = () => (
@@ -86,7 +86,7 @@ export default function AddFundsModal({ isOpen, onClose, onSuccess }: AddFundsMo
     setStep('select');
     setError('');
     setAmount('');
-    setMpesaDetails({ phone: '' });
+    setpaypalDetails({ email: '' });
     setInvoiceId('');
     onClose();
   };
@@ -95,23 +95,6 @@ export default function AddFundsModal({ isOpen, onClose, onSuccess }: AddFundsMo
   const getAuthToken = () => {
     return localStorage.getItem('auth_token') || 
            document.cookie.split('; ').find(row => row.startsWith('geon_token='))?.split('=')[1];
-  };
-
-  // Format phone number for API
-  const formatPhoneNumber = (phone: string): string => {
-    let cleaned = phone.replace(/\D/g, '');
-    
-    if (cleaned.startsWith('0')) {
-      cleaned = '254' + cleaned.substring(1);
-    } else if (cleaned.startsWith('7')) {
-      cleaned = '254' + cleaned;
-    } else if (cleaned.startsWith('254') && cleaned.length === 12) {
-      // Already in correct format
-    } else {
-      throw new Error('Invalid phone number format');
-    }
-    
-    return cleaned;
   };
 
   // Check transaction status with payment gateway
@@ -201,14 +184,13 @@ export default function AddFundsModal({ isOpen, onClose, onSuccess }: AddFundsMo
         throw new Error('Authentication required');
       }
 
-      const formattedPhone = formatPhoneNumber(mpesaDetails.phone);
       const reference = `DEP_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
 
-      const endpoint = `${API_URL}/api/v1/wallet/deposit/mpesa`;
+      const endpoint = `${API_URL}/api/v1/wallet/deposit/paypal`;
 
       const bodyData = { 
         amount: cleanAmount,
-        phone: formattedPhone,
+        currency: 'KES',
         reference: reference
       };
 
@@ -293,7 +275,7 @@ export default function AddFundsModal({ isOpen, onClose, onSuccess }: AddFundsMo
               <div>
                 <h2 className="text-base font-black text-slate-900">
                   {step === 'select' && 'Add Funds'}
-                  {step === 'form' && 'M-PESA Deposit'}
+                  {step === 'form' && 'PayPal Deposit'}
                   {step === 'processing' && 'Processing Payment'}
                   {step === 'success' && 'Payment Successful'}
                   {step === 'failed' && 'Payment Failed'}
@@ -318,7 +300,7 @@ export default function AddFundsModal({ isOpen, onClose, onSuccess }: AddFundsMo
         <div className="p-6">
           {step === 'select' && (
             <div className="space-y-3">
-              {/* M-PESA - Active */}
+              {/* PayPal - Active */}
               <button 
                 onClick={() => setStep('form')} 
                 className="w-full p-5 border-2 border-emerald-200 rounded-xl hover:border-emerald-400 hover:bg-emerald-50/30 flex items-center gap-4 transition-all group"
@@ -327,7 +309,7 @@ export default function AddFundsModal({ isOpen, onClose, onSuccess }: AddFundsMo
                   <Smartphone className="text-emerald-600" size={22} />
                 </div>
                 <div className="flex-1 text-left">
-                  <p className="text-sm font-black text-slate-900">M-PESA</p>
+                  <p className="text-sm font-black text-slate-900">PayPal</p>
                   <p className="text-xs text-slate-400 mt-0.5">Instant STK Push via secure gateway</p>
                 </div>
                 <span className="text-[10px] px-2 py-1 bg-emerald-100 text-emerald-700 rounded-full font-bold border border-emerald-200">Active</span>
@@ -386,17 +368,17 @@ export default function AddFundsModal({ isOpen, onClose, onSuccess }: AddFundsMo
               <div className="space-y-1.5">
                 <label className="text-xs font-bold text-slate-700 ml-1 flex items-center gap-1.5">
                   <Smartphone size={12} className="text-amber-500" />
-                  M-PESA Phone Number
+                  PayPal Email Address
                 </label>
                 <input
-                  type="tel" 
-                  placeholder="0712 345 678" 
-                  value={mpesaDetails.phone}
-                  onChange={(e) => setMpesaDetails({ phone: e.target.value })}
+                  type="email" 
+                  placeholder="your-paypal@email.com" 
+                  value={paypalDetails.email}
+                  onChange={(e) => setpaypalDetails({ email: e.target.value })}
                   className="w-full px-4 py-4 bg-white border-2 border-slate-200 rounded-xl text-slate-900 outline-none focus:border-amber-500 focus:ring-4 focus:ring-amber-500/10 transition-all"
                   required
                 />
-                <p className="text-[10px] text-slate-400 mt-1 font-mono">Enter the M-PESA registered phone number</p>
+                <p className="text-[10px] text-slate-400 mt-1 font-mono">Enter your PayPal email address</p>
               </div>
 
               <div className="p-4 bg-slate-50 rounded-xl border border-slate-200">
@@ -429,7 +411,7 @@ export default function AddFundsModal({ isOpen, onClose, onSuccess }: AddFundsMo
                 ) : (
                   <>
                     <Smartphone size={18} />
-                    Pay with M-PESA
+                    Pay with PayPal
                   </>
                 )}
               </button>
@@ -449,9 +431,9 @@ export default function AddFundsModal({ isOpen, onClose, onSuccess }: AddFundsMo
                 </div>
                 <Smartphone size={20} className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-amber-600" />
               </div>
-              <p className="text-base font-black text-slate-900 mb-2">Awaiting M-PESA Confirmation</p>
+              <p className="text-base font-black text-slate-900 mb-2">Awaiting PayPal Confirmation</p>
               <p className="text-xs text-slate-500 px-6 mb-4 leading-relaxed">
-                Please check your phone and enter your M-PESA PIN to complete the transaction.
+                Please check your email and complete the PayPal payment to fund your wallet.
               </p>
               {invoiceId && (
                 <p className="text-[10px] font-mono text-slate-400 bg-slate-50 py-2 px-3 rounded-full inline-block">

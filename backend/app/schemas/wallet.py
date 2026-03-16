@@ -22,7 +22,7 @@ class TransactionType(str, Enum):
     ESCROW_RELEASE = "escrow_release"
 
 class PaymentMethod(str, Enum):
-    MPESA = "mpesa"
+    PAYPAL = "paypal"
     CARD = "card"
     CRYPTO = "crypto"
     INTERNAL = "internal"

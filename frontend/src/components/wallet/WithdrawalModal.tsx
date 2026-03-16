@@ -21,7 +21,7 @@ type WithdrawalStep = 'form' | 'processing' | 'success' | 'failed';
 
 export default function WithdrawalModal({ isOpen, onClose, balances, walletAddress }: WithdrawalModalProps) {
   const { showToast } = useNotificationStore();
-  const [method, setMethod] = useState<'mpesa' | 'crypto'>('mpesa');
+  const [method, setMethod] = useState<'paypal' | 'crypto'>('paypal');
   const [amount, setAmount] = useState('');
   const [destination, setDestination] = useState('');
   const [loading, setLoading] = useState(false);
@@ -54,22 +54,6 @@ export default function WithdrawalModal({ isOpen, onClose, balances, walletAddre
            document.cookie.split('; ').find(row => row.startsWith('geon_token='))?.split('=')[1];
   };
 
-  // Format phone number for API
-  const formatPhoneNumber = (phone: string): string => {
-    let cleaned = phone.replace(/\D/g, '');
-    
-    if (cleaned.startsWith('0')) {
-      cleaned = '254' + cleaned.substring(1);
-    } else if (cleaned.startsWith('7')) {
-      cleaned = '254' + cleaned;
-    } else if (cleaned.startsWith('254') && cleaned.length === 12) {
-      // Already in correct format
-    } else {
-      throw new Error('Invalid phone number format. Use 07XX or 2547XX');
-    }
-    
-    return cleaned;
-  };
 
   // Cleanup polling on unmount
   useEffect(() => {
@@ -179,7 +163,7 @@ export default function WithdrawalModal({ isOpen, onClose, balances, walletAddre
   };
 
   const getNumericBalance = (val: string) => parseFloat(val.replace(/,/g, '')) || 0;
-  const currentBalance = method === 'mpesa' ? getNumericBalance(balances.kes) : getNumericBalance(balances.usdt);
+  const currentBalance = method === 'paypal' ? getNumericBalance(balances.kes) : getNumericBalance(balances.usdt);
   const inputAmount = parseFloat(amount) || 0;
   
   // Fee Logic
@@ -196,23 +180,23 @@ export default function WithdrawalModal({ isOpen, onClose, balances, walletAddre
     
     feePercentage = Math.max(0.25, feePercentage - loyaltyDiscount - volumeDiscount);
     
-    // Additional fee for M-PESA payouts
-    if (method === 'mpesa') feePercentage += 0.25;
+    // Additional fee for PayPal payouts
+    if (method === 'paypal') feePercentage += 0.25;
     
     const fee = (inputAmount * feePercentage) / 100;
-    return Math.max(fee, method === 'mpesa' ? 45 : 5);
+    return Math.max(fee, method === 'paypal' ? 45 : 5);
   };
   
   const fee = calculateFee();
   const youReceive = inputAmount - fee;
   const feePercentage = inputAmount > 0 ? ((fee / inputAmount) * 100).toFixed(2) : "0.00";
-  const minAmount = method === 'mpesa' ? 50 : 10;
+  const minAmount = method === 'paypal' ? 50 : 10;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     if (inputAmount < minAmount) {
-      setError(`Minimum withdrawal is ${method === 'mpesa' ? 'KES 50' : '$10'}`);
+      setError(`Minimum withdrawal is ${method === 'paypal' ? 'KES 50' : '$10'}`);
       return;
     }
     if (inputAmount > currentBalance) {
@@ -220,11 +204,11 @@ export default function WithdrawalModal({ isOpen, onClose, balances, walletAddre
       return;
     }
     
-    if (method === 'mpesa') {
-      try {
-        formatPhoneNumber(destination);
-      } catch (err: any) {
-        setError(err.message);
+    if (method === 'paypal') {
+      // Simple email validation
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(destination)) {
+        setError('Please enter a valid PayPal email address');
         return;
       }
     } else if (method === 'crypto' && !walletAddress) {
@@ -246,21 +230,21 @@ export default function WithdrawalModal({ isOpen, onClose, balances, walletAddre
 
       const reference = `WDR_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
       
-      const endpoint = method === 'mpesa' 
-        ? `${API_URL}/api/v1/wallet/withdraw/mpesa`
+      const endpoint = method === 'paypal' 
+        ? `${API_URL}/api/v1/wallet/withdraw/paypal`
         : `${API_URL}/api/v1/wallet/withdraw/crypto`;
 
       const requestBody: any = {
         amount: inputAmount,
-        currency: method === 'mpesa' ? 'KES' : 'USDT',
+        currency: method === 'paypal' ? 'KES' : 'USDT',
         reference: reference,
         fee: fee,
         fee_percentage: parseFloat(feePercentage)
       };
 
-      if (method === 'mpesa') {
-        requestBody.phone = formatPhoneNumber(destination);
-        requestBody.provider = 'MPESA';
+      if (method === 'paypal') {
+        requestBody.paypal_email = destination;
+        requestBody.provider = 'paypal';
       } else {
         requestBody.wallet_address = destination;
       }
@@ -283,7 +267,7 @@ export default function WithdrawalModal({ isOpen, onClose, balances, walletAddre
       setWithdrawalId(data.withdrawal_id || data.payout_id || data.id);
       setTrackingId(data.tracking_id || data.conversation_id || data.order_tracking_id || '');
 
-      if (method === 'mpesa' && (data.payout_id || data.id || data.conversation_id)) {
+      if (method === 'paypal' && (data.payout_id || data.id || data.conversation_id)) {
         startPolling(data.payout_id || data.id || data.conversation_id);
       } else {
         setStep('success');
@@ -364,15 +348,15 @@ export default function WithdrawalModal({ isOpen, onClose, balances, walletAddre
                 <div className="grid grid-cols-2 gap-3">
                   <button 
                     type="button" 
-                    onClick={() => setMethod('mpesa')}
+                    onClick={() => setMethod('paypal')}
                     className={`flex items-center gap-2 px-3 py-4 rounded-xl border-2 transition-all ${
-                      method === 'mpesa' 
+                      method === 'paypal' 
                         ? 'bg-emerald-50 border-emerald-300 text-emerald-700 shadow-sm' 
                         : 'bg-white border-slate-200 text-slate-600 hover:border-emerald-200 hover:bg-emerald-50/30'
                     }`}
                   >
                     <Smartphone size={20} />
-                    <span className="text-sm font-black">M-PESA</span>
+                    <span className="text-sm font-black">PayPal</span>
                   </button>
                   
                   <button 
@@ -397,8 +381,8 @@ export default function WithdrawalModal({ isOpen, onClose, balances, walletAddre
                   Available Balance
                 </p>
                 <p className="text-2xl font-black text-slate-900">
-                  {method === 'mpesa' ? balances.kes : balances.usdt} 
-                  <span className="text-sm font-bold text-slate-400 ml-2">{method === 'mpesa' ? 'KES' : 'USDT'}</span>
+                  {method === 'paypal' ? balances.kes : balances.usdt} 
+                  <span className="text-sm font-bold text-slate-400 ml-2">{method === 'paypal' ? 'KES' : 'USDT'}</span>
                 </p>
               </div>
 
@@ -418,22 +402,22 @@ export default function WithdrawalModal({ isOpen, onClose, balances, walletAddre
                       step="0.01"
                     />
                     <div className="absolute right-4 top-1/2 -translate-y-1/2 text-sm font-bold text-slate-400">
-                      {method === 'mpesa' ? 'KES' : 'USDT'}
+                      {method === 'paypal' ? 'KES' : 'USDT'}
                     </div>
                   </div>
                 </div>
 
                 <div>
                   <label className="text-xs font-bold text-slate-700 mb-1.5 block">
-                    {method === 'mpesa' ? 'M-PESA Phone Number' : 'Wallet Address'}
+                    {method === 'paypal' ? 'PayPal Email' : 'Wallet Address'}
                   </label>
-                  {method === 'mpesa' ? (
+                  {method === 'paypal' ? (
                     <input
-                      type="tel" 
+                      type="email" 
                       value={destination} 
                       onChange={(e) => setDestination(e.target.value)}
                       className="w-full px-4 py-4 bg-white border-2 border-slate-200 rounded-xl text-sm outline-none focus:border-amber-500 focus:ring-4 focus:ring-amber-500/10 transition-all"
-                      placeholder="0712 345 678" 
+                      placeholder="you@example.com" 
                       required
                     />
                   ) : (
@@ -443,9 +427,9 @@ export default function WithdrawalModal({ isOpen, onClose, balances, walletAddre
                       </p>
                     </div>
                   )}
-                  {method === 'mpesa' && (
+                  {method === 'paypal' && (
                     <p className="text-[10px] font-mono text-slate-400 mt-1">
-                      Enter the M-PESA registered phone number
+                      Enter your PayPal email address
                     </p>
                   )}
                 </div>
@@ -473,13 +457,13 @@ export default function WithdrawalModal({ isOpen, onClose, balances, walletAddre
                   <div className="flex justify-between text-sm">
                     <span className="text-slate-500 font-bold">Fee ({feePercentage}%)</span>
                     <span className="font-black text-slate-900">
-                      {method === 'mpesa' ? 'KES' : '$'}{fee.toFixed(2)}
+                      {method === 'paypal' ? 'KES' : '$'}{fee.toFixed(2)}
                     </span>
                   </div>
                   <div className="flex justify-between text-sm pt-3 border-t-2 border-slate-200">
                     <span className="text-slate-700 font-black">You receive</span>
                     <span className="font-black text-emerald-600">
-                      {method === 'mpesa' ? 'KES' : '$'}{youReceive.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      {method === 'paypal' ? 'KES' : '$'}{youReceive.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </span>
                   </div>
                 </div>
@@ -518,8 +502,8 @@ export default function WithdrawalModal({ isOpen, onClose, balances, walletAddre
               <div>
                 <h3 className="text-base font-black text-slate-900">Processing Withdrawal</h3>
                 <p className="text-xs text-slate-500 mt-2 max-w-xs mx-auto">
-                  {method === 'mpesa' 
-                    ? 'Please wait while we process your M-PESA withdrawal through our secure gateway' 
+                  {method === 'paypal' 
+                    ? 'Please wait while we process your PayPal withdrawal through our secure gateway' 
                     : 'Please wait while we process your crypto withdrawal'}
                 </p>
               </div>
@@ -547,8 +531,8 @@ export default function WithdrawalModal({ isOpen, onClose, balances, walletAddre
               <div>
                 <h3 className="text-base font-black text-slate-900">Withdrawal Complete</h3>
                 <p className="text-xs text-slate-500 mt-2">
-                  {method === 'mpesa' 
-                    ? 'Funds have been sent to your M-PESA' 
+                  {method === 'paypal' 
+                    ? 'Funds have been sent to your PayPal' 
                     : 'Funds have been sent to your wallet'}
                 </p>
               </div>
